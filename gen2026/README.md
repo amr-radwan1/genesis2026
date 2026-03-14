@@ -1,50 +1,60 @@
-# Welcome to your Expo app 👋
+# Genesis 2026
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Genesis 2026 is an Expo Router app with a unified on-device inference surface:
 
-## Get started
+- Whisper for local audio transcription
+- Qwen 0.5B GGUF for local chat
+- A single Android UI to download models, run transcription, and test chat
 
-1. Install dependencies
+## Important constraint
 
-   ```bash
-   npm install
-   ```
+This project uses `whisper.rn` and `llama.rn`. Those are native modules. Expo Go cannot load them.
 
-2. Start the app
+If you open this project in Expo Go, the app now stays safe and shows setup guidance instead of crashing, but Whisper and Qwen only work in a native Android development build.
 
-   ```bash
-   npx expo start
-   ```
+## Recommended Android flow
 
-In the output, you'll find options to open the app in a
+From this folder:
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+```powershell
+npm run android:devclient
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+That script:
 
-## Learn more
+- mirrors the app to `C:\g26` to avoid Windows path-length build failures
+- installs dependencies in the short workspace
+- runs `expo prebuild`
+- builds and installs the Android debug APK
+- starts Expo in dev-client mode on port `8083`
+- opens the installed dev client on the connected Android device
 
-To learn more about developing your project with Expo, look at the following resources:
+## Manual commands
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+If you want to run pieces manually:
 
-## Join the community
+```powershell
+npm install
+npx expo start --dev-client --host lan --port 8083
+```
 
-Join our community of developers creating universal apps.
+For the Android native build, the short-path workspace is currently the reliable approach on this machine:
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+```powershell
+cd C:\g26
+npm install
+npx expo prebuild --clean --platform android
+cd android
+.\gradlew.bat installDebug
+```
+
+## Screens
+
+- `Lab`: unified Whisper + Qwen testing surface
+- `Setup`: explains why a native dev build is required
+
+## Services
+
+- `services/whisper-service.ts`: Whisper model download and local transcription
+- `services/llm-service.ts`: Qwen GGUF discovery, download, load, and chat
+- `services/native-runtime.ts`: guards native-only code so Expo Go does not crash
