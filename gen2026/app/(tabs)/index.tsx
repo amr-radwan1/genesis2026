@@ -156,9 +156,17 @@ export default function HomeScreen() {
     setErrorMessage(null);
 
     try {
-      const result = await transcribeAudio(audioFileUri, audioFileName ?? undefined, (message) => {
-        setWhisperProgress(message);
-      });
+      const result = await transcribeAudio(
+        audioFileUri,
+        audioFileName ?? undefined,
+        (message) => {
+          setWhisperProgress(message);
+        },
+        (partialText) => {
+          // Provide incremental updates identically to live transcription
+          setTranscript(partialText);
+        }
+      );
       setTranscript(result);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Transcription failed.';
