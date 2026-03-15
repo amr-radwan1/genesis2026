@@ -32,7 +32,7 @@ type LlamaModule = {
   releaseAllLlama: () => Promise<void>;
 };
 
-const HF_REPO = 'medmekk/Qwen2.5-0.5B-Instruct.GGUF';
+const HF_REPO = 'unsloth/gemma-3-1b-it-GGUF';
 const MODELS_DIR = `${FileSystem.documentDirectory}models/`;
 const STOP_WORDS = ['</s>', '<|end|>', '<|im_end|>', '<|eot_id|>', '<|end_of_text|>'];
 
