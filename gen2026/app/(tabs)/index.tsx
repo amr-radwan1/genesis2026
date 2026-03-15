@@ -538,6 +538,7 @@ export default function HomeScreen() {
               value={composer}
               onChangeText={setComposer}
               multiline
+              
             />
             <View style={styles.composerActions}>
               <Pressable
@@ -859,6 +860,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(148, 163, 184, 0.12)',
     padding: 14,
     gap: 12,
+    flex: 1
   },
   chatShellTitle: {
     color: '#f8fafc',
@@ -866,7 +868,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   chatFeed: {
-    maxHeight: 380,
+    
   },
   chatFeedContent: {
     gap: 10,
@@ -896,7 +898,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1.1,
   },
   messageText: {
-    lineHeight: 21,
+    
   },
   userMessageText: {
     color: '#111827',
