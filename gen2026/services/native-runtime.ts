@@ -1,9 +1,6 @@
-import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
 export function getNativeInferenceStatus() {
-  const executionEnvironment = Constants.executionEnvironment ?? 'unknown';
-
   if (Platform.OS === 'web') {
     return {
       available: false,
@@ -11,17 +8,9 @@ export function getNativeInferenceStatus() {
     };
   }
 
-  if (executionEnvironment === 'storeClient') {
-    return {
-      available: false,
-      reason:
-        'Expo Go cannot load whisper.rn or llama.rn. Use `npx expo prebuild` and `npx expo run:android`.',
-    };
-  }
-
   return {
     available: true,
-    reason: 'Native runtime detected.',
+    reason: 'Native Android runtime expected.',
   };
 }
 

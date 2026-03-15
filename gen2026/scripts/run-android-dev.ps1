@@ -88,12 +88,8 @@ try {
   }
 
   $deviceId = ($deviceLine.ToString() -split "\s+")[0]
-  $lanIp = Get-LanIpAddress
-  $encodedUrl = "http://$lanIp`:$Port"
-  $deepLink = "exp+gen2026://expo-development-client/?url=$([uri]::EscapeDataString($encodedUrl))"
-
   & $adb -s $deviceId reverse "tcp:$Port" "tcp:$Port" | Out-Null
-  & $adb -s $deviceId shell am start -a android.intent.action.VIEW -d $deepLink | Out-Null
+  & $adb -s $deviceId shell am start -n "com.anonymous.gen2026/.MainActivity" | Out-Null
 
   Write-Host "Development build installed and launched."
   Write-Host "Short build workspace: $ShortRoot"
