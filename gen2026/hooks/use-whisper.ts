@@ -1,6 +1,8 @@
 import { useState, useCallback, useEffect } from 'react';
 import { startLiveTranscription, stopLiveTranscription } from '@/services/whisper-service';
 
+import BackgroundService from '@/services/background-service';
+
 export function useWhisper() {
   const [currentTranscript, setCurrentTranscript] = useState('');
   const [status, setStatus] = useState('');
@@ -17,6 +19,7 @@ export function useWhisper() {
       await startLiveTranscription(
         (text) => {
           setCurrentTranscript(text);
+          BackgroundService.updateServiceText(text).catch(console.error);
           onTextUpdate?.(text);
         },
         (statusMsg) => {
