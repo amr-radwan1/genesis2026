@@ -2,7 +2,6 @@ import { useState, useCallback, useEffect } from 'react';
 import { startLiveTranscription, stopLiveTranscription } from '@/services/whisper-service';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 
-import BackgroundService from '@/services/background-service';
 
 export function useWhisper() {
   const [currentTranscript, setCurrentTranscript] = useState('');
@@ -22,7 +21,6 @@ export function useWhisper() {
       await startLiveTranscription(
         (text) => {
           setCurrentTranscript(text);
-          BackgroundService.updateServiceText(text).catch(console.error);
           onTextUpdate?.(text);
         },
         (statusMsg) => {

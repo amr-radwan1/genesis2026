@@ -34,6 +34,8 @@ export async function startBackgroundRecordingService() {
       asForegroundService: true,
       ongoing: true,
       foregroundServiceTypes: [128], // AndroidForegroundServiceType.FOREGROUND_SERVICE_TYPE_MICROPHONE (128)
+      // The microphone icon to indicate active recording
+      smallIcon: 'ic_menu_mic',
     },
   });
 }
@@ -52,6 +54,7 @@ export async function updateBackgroundRecordingText(text: string) {
       asForegroundService: true,
       ongoing: true,
       foregroundServiceTypes: [128],
+      smallIcon: 'ic_menu_mic',
     },
   });
 }

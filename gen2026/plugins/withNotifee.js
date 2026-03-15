@@ -34,7 +34,7 @@ const withNotifee = (config) => {
       application.service.push({
         $: {
           'android:name': 'app.notifee.core.ForegroundService',
-          'android:foregroundServiceType': 'microphone|shortService',
+          'android:foregroundServiceType': 'microphone',
           'android:exported': 'false',
           'tools:replace': 'android:foregroundServiceType',
         },

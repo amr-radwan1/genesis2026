@@ -672,7 +672,6 @@ async function releaseLiveSession(
   await sleep(250);
   await session.context.release().catch(() => undefined);
   await whisper.releaseAllWhisper?.().catch(() => undefined);
-  await stopBackgroundRecordingService();
 }
 
 async function beginLiveSession(controller: LiveController) {
@@ -708,9 +707,9 @@ async function beginLiveSession(controller: LiveController) {
     maxLen: 1,
     tokenTimestamps: true,
     useVad: false,
-    realtimeAudioSec: 12,
-    realtimeAudioSliceSec: 12,
-    realtimeAudioMinSec: 1.5,
+    realtimeAudioSec: 30,
+    realtimeAudioSliceSec: 30,
+    realtimeAudioMinSec: 2,
   });
 
   session.stop = async () => {

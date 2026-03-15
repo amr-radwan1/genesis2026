@@ -178,11 +178,9 @@ export default function RecordScreen() {
     try {
       if (isRecording) {
         setIsRecording(false);
-        await BackgroundService.stopService();
         await stopLiveTranscription();
       } else {
         setIsRecording(true);
-        await BackgroundService.startService();
         await startLiveTranscription(() => {});
       }
     } catch (e: any) {
