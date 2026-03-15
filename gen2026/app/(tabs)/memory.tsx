@@ -10,6 +10,7 @@ import {
   Platform,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import {
   getMemorySnapshot,
@@ -206,6 +207,8 @@ function CustomCard({
 // ─── Main Screen ─────────────────────────────────────────────────────────────
 export default function MemoryScreen() {
   const insets = useSafeAreaInsets();
+  const tabBarHeight = useBottomTabBarHeight();
+  const androidInputOffset = Platform.OS === 'android' ? Math.max(8, tabBarHeight - 64) : 0;
   const [category, setCategory] = useState<Category>('notes');
   const [snap, setSnap] = useState(getMemorySnapshot());
   const [input, setInput] = useState('');
@@ -306,7 +309,7 @@ export default function MemoryScreen() {
       </ScrollView>
 
       {/* Input bar */}
-      <View style={styles.inputBar}>
+      <View style={[styles.inputBar, { marginBottom: androidInputOffset }]}>
         {category === 'custom' && (
           <TextInput
             style={[styles.textInput, { width: 100 }]}

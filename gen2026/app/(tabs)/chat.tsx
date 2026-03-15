@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import {
   isModelDownloaded,
   downloadGemmaModel,
@@ -54,6 +55,8 @@ function getOverlapScore(queryTokens: Set<string>, text: string): number {
 
 export default function ChatScreen() {
   const insets = useSafeAreaInsets();
+  const tabBarHeight = useBottomTabBarHeight();
+  const androidInputOffset = Platform.OS === 'android' ? Math.max(8, tabBarHeight - 64) : 0;
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isReady, setIsReady] = useState(false);
@@ -229,7 +232,7 @@ export default function ChatScreen() {
           )}
         </ScrollView>
 
-        <View style={styles.inputArea}>
+        <View style={[styles.inputArea, { marginBottom: androidInputOffset }]}>
           <TextInput
             style={styles.input}
             placeholder="Type a message..."

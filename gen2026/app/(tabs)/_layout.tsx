@@ -28,23 +28,25 @@ export default function TabLayout() {
           backgroundColor: '#ffffff',
           borderTopWidth: 1,
           borderTopColor: '#f1f5f9',
-          height: Platform.OS === 'ios' ? 84 + insets.bottom : 70 + insets.bottom,
-          paddingBottom: insets.bottom + (Platform.OS === 'ios' ? 18 : 10),
-          paddingTop: 8,
+          height: Platform.OS === 'ios' ? 82 + insets.bottom : 66 + insets.bottom,
+          paddingBottom: insets.bottom + (Platform.OS === 'ios' ? 24 : 14),
+          paddingTop: 0,
           elevation: 0,
         },
         tabBarItemStyle: {
           borderRadius: 12,
           marginHorizontal: 4,
-          marginVertical: 4,
+          marginVertical: 2,
+          paddingBottom: Platform.OS === 'android' ? 2 : 0,
         },
         tabBarIconStyle: {
-          marginTop: 2,
+          marginTop: Platform.OS === 'android' ? -1 : 0,
         },
         tabBarLabelStyle: {
           fontSize: 12,
           fontWeight: '600',
-          marginTop: 1,
+          marginTop: 0,
+          marginBottom: 0,
         },
       }}>
       <Tabs.Screen
