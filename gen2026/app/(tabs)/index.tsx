@@ -199,8 +199,7 @@ export default function RecordScreen() {
           {isRecording ? 'Listening...' : 'Local Voice Interface'}
         </Text>
       </View>
-
-      <View style={styles.centerArea}>
+      <View style={styles.centerArea}>
         <View style={styles.actionContainer}>
           <SplineBlob isRecording={isRecording} />
           
@@ -223,6 +222,7 @@ export default function RecordScreen() {
           {isRecording ? 'Recording in progress' : 'Tap to start listening'}
         </Text>
       </View>
+
 
       <View style={styles.transcriptSection}>
         <View style={styles.transcriptHeader}>

@@ -26,6 +26,7 @@ export async function startBackgroundRecordingService() {
   });
 
   await notifee.displayNotification({
+    id: 'live_transcription_service',
     title: 'Live Transcription Active',
     body: 'Genesis 2026 is actively listening and transcribing your speech in the background.',
     android: {
@@ -33,8 +34,24 @@ export async function startBackgroundRecordingService() {
       asForegroundService: true,
       ongoing: true,
       foregroundServiceTypes: [128], // AndroidForegroundServiceType.FOREGROUND_SERVICE_TYPE_MICROPHONE (128)
-      // The microphone icon to indicate active recording
-      smallIcon: 'ic_menu_mic',
+    },
+  });
+}
+
+export async function updateBackgroundRecordingText(text: string) {
+  if (Platform.OS !== 'android') return;
+  
+  const displayBody = text.trim() ? text : 'Genesis 2026 is actively listening and transcribing your speech in the background.';
+
+  await notifee.displayNotification({
+    id: 'live_transcription_service',
+    title: 'Live Transcription Active',
+    body: displayBody,
+    android: {
+      channelId: CHANNEL_ID,
+      asForegroundService: true,
+      ongoing: true,
+      foregroundServiceTypes: [128],
     },
   });
 }
@@ -48,9 +65,11 @@ export async function stopBackgroundRecordingService() {
   }
   await notifee.stopForegroundService();
 }
+
 const BackgroundService = {
   startService: startBackgroundRecordingService,
   stopService: stopBackgroundRecordingService,
+  updateServiceText: updateBackgroundRecordingText,
 };
 
 export default BackgroundService;

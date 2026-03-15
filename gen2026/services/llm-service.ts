@@ -127,7 +127,7 @@ export async function loadGemmaModel() {
 
 export async function unloadGemmaModel() {
   const llama = getLlamaModule();
-  await llama.releaseAllLlama().catch(() => {});
+  await llama.releaseAllLlama().catch(() => { });
   activeContext = null;
   isActive = false;
 }
