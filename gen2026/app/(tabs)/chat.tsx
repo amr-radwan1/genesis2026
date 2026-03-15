@@ -187,7 +187,8 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingTop: 24,
+    paddingBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#f1f5f9',
   },
@@ -216,7 +217,7 @@ const styles = StyleSheet.create({
   },
   userBubble: {
     alignSelf: 'flex-end',
-    backgroundColor: '#f97316',
+    backgroundColor: '#000000',
     borderBottomRightRadius: 4,
   },
   assistantBubble: {
@@ -273,7 +274,7 @@ const styles = StyleSheet.create({
     color: '#0f172a',
   },
   sendButton: {
-    backgroundColor: '#f97316',
+    backgroundColor: '#000000',
     height: 44,
     paddingHorizontal: 20,
     borderRadius: 22,
@@ -281,7 +282,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   sendButtonDisabled: {
-    backgroundColor: '#fed7aa',
+    backgroundColor: '#475569',
   },
   sendButtonText: {
     color: '#ffffff',
