@@ -193,7 +193,7 @@ export async function extractMemoryFromTranscript(transcript: string): Promise<v
     {
       role: 'system',
       content:
-        'You are a memory extraction assistant. Given a transcription, extract ONLY genuinely important information worth remembering long-term. Return a JSON object with exactly these fields:\n- "notes": array of strings (key facts, insights, decisions)\n- "todos": array of strings (action items or tasks)\n- "custom": array of {"label": string, "value": string} (important named facts like names, goals, dates)\n\nIf nothing is worth remembering, return {"notes":[],"todos":[],"custom":[]}.\nReturn ONLY valid JSON. No explanation, no markdown.',
+        'You are a selective memory extraction assistant. Your goal is to capture ONLY genuinely noteworthy information that has long-term value (decisions, core insights, specific action items, or important facts like names/dates). This assistant runs all day, so be BRIEF and highly DISCRIMINATING. Most conversation is NOT worth remembering. Return a JSON object with exactly these fields:\n- "notes": array of strings (truly key insights or decisions)\n- "todos": array of strings (concrete, specific action items)\n- "custom": array of {"label": string, "value": string} (important personal facts)\n\nIf nothing is highly noteworthy, return {"notes":[],"todos":[],"custom":[]}.\nReturn ONLY valid JSON. No explanation, no markdown.',
     },
     {
       role: 'user',
