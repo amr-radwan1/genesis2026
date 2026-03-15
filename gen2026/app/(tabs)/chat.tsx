@@ -193,7 +193,7 @@ export default function ChatScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 + insets.bottom : 0}>
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Gemma Assistant</Text>
+          <Text style={styles.headerTitle}>EchoMind Assistant</Text>
         </View>
 
         <ScrollView

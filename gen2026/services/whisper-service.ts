@@ -648,7 +648,7 @@ async function ensureMicrophonePermission() {
     PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
     {
       title: 'Microphone access required',
-      message: 'Genesis 2026 needs microphone access for live Whisper transcription.',
+      message: 'EchoMind needs microphone access for live Whisper transcription.',
       buttonPositive: 'Allow',
       buttonNegative: 'Cancel',
     },

@@ -216,7 +216,7 @@ export default function RecordScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Genesis Assistant</Text>
+        <Text style={styles.title}>EchoMind</Text>
         <Text style={styles.subtitle}>
           {isRecording ? 'Listening...' : 'Local Voice Interface'}
         </Text>

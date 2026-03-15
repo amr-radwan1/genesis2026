@@ -28,7 +28,7 @@ export async function startBackgroundRecordingService() {
   await notifee.displayNotification({
     id: 'live_transcription_service',
     title: 'Live Transcription Active',
-    body: 'Genesis 2026 is actively listening and transcribing your speech in the background.',
+    body: 'EchoMind is actively listening and transcribing your speech in the background.',
     android: {
       channelId: CHANNEL_ID,
       asForegroundService: true,
@@ -43,7 +43,7 @@ export async function startBackgroundRecordingService() {
 export async function updateBackgroundRecordingText(text: string) {
   if (Platform.OS !== 'android') return;
   
-  const displayBody = text.trim() ? text : 'Genesis 2026 is actively listening and transcribing your speech in the background.';
+  const displayBody = text.trim() ? text : 'EchoMind is actively listening and transcribing your speech in the background.';
 
   await notifee.displayNotification({
     id: 'live_transcription_service',
