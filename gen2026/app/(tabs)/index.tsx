@@ -24,7 +24,6 @@ import Animated, {
   useAnimatedProps,
 } from 'react-native-reanimated';
 import { useWhisper } from '@/hooks/use-whisper';
-import BackgroundService from '@/services/background-service';
 import { transcribeAudio } from '@/services/whisper-service';
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
