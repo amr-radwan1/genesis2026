@@ -33,11 +33,14 @@ type LlamaModule = {
 };
 
 const HF_REPO = 'unsloth/gemma-3-1b-it-GGUF';
+const HF_FILENAME = 'gemma-3-1b-it-IQ4_NL.gguf';
+
 const MODELS_DIR = `${FileSystem.documentDirectory}models/`;
-const STOP_WORDS = ['</s>', '<|end|>', '<|im_end|>', '<|eot_id|>', '<|end_of_text|>'];
+// Explicitly define stop sequences for Gemma 3
+const STOP_WORDS = ['<end_of_turn>', '<eos>'];
 
 let activeContext: LlamaContext | null = null;
-let activeModelName: string | null = null;
+let isActive = false;
 
 export type ModelProgressCallback = (message: string, percent: number) => void;
 
@@ -48,7 +51,7 @@ function getLlamaModule(): LlamaModule {
     return require('llama.rn') as LlamaModule;
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown native load error';
-    throw new Error(`Qwen native module is unavailable: ${message}`);
+    throw new Error(`Native module is unavailable: ${message}`);
   }
 }
 
@@ -59,71 +62,57 @@ async function ensureModelsDir() {
   }
 }
 
-export async function fetchAvailableQwenModels() {
-  const response = await fetch(`https://huggingface.co/api/models/${HF_REPO}`);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch Qwen formats: ${response.status}`);
-  }
-
-  const data = await response.json();
-  return (data.siblings ?? [])
-    .map((file: { rfilename?: string }) => file.rfilename)
-    .filter((name: string | undefined): name is string => Boolean(name?.endsWith('.gguf')))
-    .sort((left: string, right: string) => left.localeCompare(right));
+export async function isModelDownloaded(): Promise<boolean> {
+  const targetPath = `${MODELS_DIR}${HF_FILENAME}`;
+  const fileInfo = await FileSystem.getInfoAsync(targetPath);
+  return fileInfo.exists;
 }
 
-export async function getDownloadedQwenModels() {
-  await ensureModelsDir();
-  const files = await FileSystem.readDirectoryAsync(MODELS_DIR);
-  return files.filter((name) => name.endsWith('.gguf'));
-}
-
-export async function downloadQwenModel(
-  fileName: string,
+export async function downloadGemmaModel(
   onProgress?: ModelProgressCallback,
 ) {
   await ensureModelsDir();
 
-  const targetPath = `${MODELS_DIR}${fileName}`;
+  const targetPath = `${MODELS_DIR}${HF_FILENAME}`;
   const fileInfo = await FileSystem.getInfoAsync(targetPath);
   if (fileInfo.exists) {
-    onProgress?.(`${fileName} already cached`, 100);
+    onProgress?.(`Model already cached`, 100);
     return targetPath;
   }
 
-  const url = `https://huggingface.co/${HF_REPO}/resolve/main/${fileName}`;
+  const url = `https://huggingface.co/${HF_REPO}/resolve/main/${HF_FILENAME}`;
   const task = FileSystem.createDownloadResumable(url, targetPath, {}, (event) => {
     if (!event.totalBytesExpectedToWrite) {
-      onProgress?.(`Downloading ${fileName}...`, 0);
+      onProgress?.(`Downloading ${HF_FILENAME}...`, 0);
       return;
     }
     const percent = Math.round(
       (event.totalBytesWritten / event.totalBytesExpectedToWrite) * 100,
     );
-    onProgress?.(`Downloading ${fileName}... ${percent}%`, percent);
+    onProgress?.(`Downloading... ${percent}%`, percent);
   });
 
-  onProgress?.(`Downloading ${fileName}...`, 0);
+  onProgress?.(`Downloading...`, 0);
   const result = await task.downloadAsync();
   if (!result?.uri) {
-    throw new Error(`Failed to download ${fileName}`);
+    throw new Error(`Failed to download ${HF_FILENAME}`);
   }
 
-  onProgress?.(`${fileName} ready`, 100);
+  onProgress?.(`Ready`, 100);
   return targetPath;
 }
 
-export async function loadQwenModel(fileName: string) {
+export async function loadGemmaModel() {
   const llama = getLlamaModule();
-  const path = `${MODELS_DIR}${fileName}`;
+  const path = `${MODELS_DIR}${HF_FILENAME}`;
   const fileInfo = await FileSystem.getInfoAsync(path);
 
   if (!fileInfo.exists) {
-    throw new Error(`Model file is missing: ${fileName}`);
+    throw new Error(`Model file is missing`);
   }
 
-  if (activeContext && activeModelName === fileName) {
-    return { fileName };
+  if (activeContext && isActive) {
+    return;
   }
 
   await llama.releaseAllLlama();
@@ -131,37 +120,35 @@ export async function loadQwenModel(fileName: string) {
     model: path,
     use_mlock: true,
     n_ctx: 2048,
-    n_gpu_layers: 1,
+    n_gpu_layers: 1, // Utilize Android GPU via standard llama.cpp backend if available
   });
-  activeModelName = fileName;
-
-  return { fileName };
+  isActive = true;
 }
 
-export async function unloadQwenModel() {
+export async function unloadGemmaModel() {
   const llama = getLlamaModule();
-  await llama.releaseAllLlama();
+  await llama.releaseAllLlama().catch(() => { });
   activeContext = null;
-  activeModelName = null;
+  isActive = false;
 }
 
-export function getActiveQwenModel() {
-  return activeModelName;
+export function isGemmaLoaded() {
+  return isActive;
 }
 
-export async function sendQwenMessage(
+export async function sendGemmaMessage(
   messages: ChatMessage[],
   onToken?: (text: string) => void,
 ) {
   if (!activeContext) {
-    throw new Error('Load a Qwen model before sending a message.');
+    throw new Error('Load the model before sending a message.');
   }
 
   let output = '';
   const result = await activeContext.completion(
     {
       messages,
-      n_predict: 1000,
+      n_predict: 500,
       stop: STOP_WORDS,
     },
     (data) => {
