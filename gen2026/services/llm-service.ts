@@ -1,28 +1,10 @@
 import * as FileSystem from 'expo-file-system/legacy';
 
-import {
-  generateBitnetText,
-  loadBitnetModel,
-  releaseBitnetModel,
-} from '@/services/bitnet-service';
 import { assertNativeInferenceAvailable } from '@/services/native-runtime';
 
 export type ChatMessage = {
   role: 'system' | 'user' | 'assistant';
   content: string;
-};
-
-export type LlmModelDescriptor = {
-  id: string;
-  engine: 'llama' | 'bitnet';
-  family: string;
-  label: string;
-  repo: string;
-  fileName: string;
-  sizeBytes?: number;
-  contextLength?: number;
-  note?: string;
-  supported?: boolean;
 };
 
 type LlamaContext = {
@@ -48,66 +30,17 @@ type LlamaModule = {
     n_gpu_layers?: number;
   }) => Promise<LlamaContext>;
   releaseAllLlama: () => Promise<void>;
-  loadLlamaModelInfo?: (model: string) => Promise<Record<string, unknown>>;
 };
 
-const MODELS_DIR = `${FileSystem.documentDirectory}models/`;
-const STOP_WORDS = ['</s>', '<|end|>', '<|im_end|>', '<|eot_id|>', '<|end_of_text|>'];
-const CACHE_TOLERANCE_BYTES = 4096;
+const HF_REPO = 'unsloth/gemma-3-1b-it-GGUF';
+const HF_FILENAME = 'gemma-3-1b-it-IQ4_NL.gguf';
 
-const MODEL_CATALOG: LlmModelDescriptor[] = [
-  {
-    id: 'qwen:Qwen2.5-0.5B-Instruct-IQ3_M_imat.gguf',
-    engine: 'llama',
-    family: 'qwen',
-    label: 'Qwen 2.5 0.5B',
-    repo: 'medmekk/Qwen2.5-0.5B-Instruct.GGUF',
-    fileName: 'Qwen2.5-0.5B-Instruct-IQ3_M_imat.gguf',
-    contextLength: 2048,
-    note: 'Fast default local assistant.',
-    supported: true,
-  },
-  {
-    id: 'bitnet:ggml-model-i2_s.gguf',
-    engine: 'bitnet',
-    family: 'bitnet',
-    label: 'BitNet b1.58 2B 4T',
-    repo: 'microsoft/bitnet-b1.58-2B-4T-gguf',
-    fileName: 'ggml-model-i2_s.gguf',
-    sizeBytes: 1187801280,
-    contextLength: 4096,
-    note: 'Official Microsoft BitNet checkpoint. Disabled in this build because the compiled kernel preset is targeting bitnet_b1_58-large first.',
-    supported: false,
-  },
-  {
-    id: 'bitnet:bitnet_b1_58-large.Q2_K.gguf',
-    engine: 'bitnet',
-    family: 'bitnet',
-    label: 'BitNet b1.58 Large Q2',
-    repo: 'RichardErkhov/1bitLLM_-_bitnet_b1_58-large-gguf',
-    fileName: 'bitnet_b1_58-large.Q2_K.gguf',
-    sizeBytes: 291708608,
-    contextLength: 2048,
-    note: 'Smaller BitNet-family GGUF for the bitnet_b1_58-large native kernel preset.',
-    supported: true,
-  },
-  {
-    id: 'bitnet:bitnet_b1_58-large.Q4_K_M.gguf',
-    engine: 'bitnet',
-    family: 'bitnet',
-    label: 'BitNet b1.58 Large Q4',
-    repo: 'RichardErkhov/1bitLLM_-_bitnet_b1_58-large-gguf',
-    fileName: 'bitnet_b1_58-large.Q4_K_M.gguf',
-    sizeBytes: 450887360,
-    contextLength: 2048,
-    note: 'Higher-quality BitNet-family GGUF for the bitnet_b1_58-large native kernel preset.',
-    supported: true,
-  },
-];
+const MODELS_DIR = `${FileSystem.documentDirectory}models/`;
+// Explicitly define stop sequences for Gemma 3
+const STOP_WORDS = ['<end_of_turn>', '<eos>'];
 
 let activeContext: LlamaContext | null = null;
-let activeModelId: string | null = null;
-let activeModelDescriptor: LlmModelDescriptor | null = null;
+let isActive = false;
 
 export type ModelProgressCallback = (message: string, percent: number) => void;
 
@@ -118,26 +51,8 @@ function getLlamaModule(): LlamaModule {
     return require('llama.rn') as LlamaModule;
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown native load error';
-    throw new Error(`Local LLM native module is unavailable: ${message}`);
+    throw new Error(`Native module is unavailable: ${message}`);
   }
-}
-
-function getStorageFileName(descriptor: Pick<LlmModelDescriptor, 'family' | 'fileName'>) {
-  return `${descriptor.family}__${descriptor.fileName}`;
-}
-
-function parseStorageFileName(fileName: string) {
-  const separator = '__';
-  const separatorIndex = fileName.indexOf(separator);
-
-  if (separatorIndex === -1) {
-    return null;
-  }
-
-  return {
-    family: fileName.slice(0, separatorIndex),
-    fileName: fileName.slice(separatorIndex + separator.length),
-  };
 }
 
 async function ensureModelsDir() {
@@ -147,235 +62,93 @@ async function ensureModelsDir() {
   }
 }
 
-function findDescriptor(id: string) {
-  return MODEL_CATALOG.find((model) => model.id === id) ?? null;
+export async function isModelDownloaded(): Promise<boolean> {
+  const targetPath = `${MODELS_DIR}${HF_FILENAME}`;
+  const fileInfo = await FileSystem.getInfoAsync(targetPath);
+  return fileInfo.exists;
 }
 
-function isFileSizeValid(actualSize: number | undefined, expectedSize: number | undefined) {
-  if (!expectedSize) {
-    return true;
-  }
-
-  if (!actualSize || actualSize <= 0) {
-    return false;
-  }
-
-  return Math.abs(actualSize - expectedSize) <= CACHE_TOLERANCE_BYTES;
-}
-
-async function getCachedModelInfo(descriptor: LlmModelDescriptor) {
-  const path = `${MODELS_DIR}${getStorageFileName(descriptor)}`;
-  const info = await FileSystem.getInfoAsync(path);
-  const size = 'size' in info && typeof info.size === 'number' ? info.size : undefined;
-  const valid = info.exists && isFileSizeValid(size, descriptor.sizeBytes);
-
-  return {
-    path,
-    exists: info.exists,
-    size,
-    valid,
-  };
-}
-
-function buildBitnetPrompt(messages: ChatMessage[]) {
-  const promptBody = messages
-    .map((message) => {
-      if (message.role === 'system') {
-        return `<|start_header_id|>system<|end_header_id|>\n\n${message.content}<|eot_id|>`;
-      }
-
-      if (message.role === 'user') {
-        return `<|start_header_id|>user<|end_header_id|>\n\n${message.content}<|eot_id|>`;
-      }
-
-      return `<|start_header_id|>assistant<|end_header_id|>\n\n${message.content}<|eot_id|>`;
-    })
-    .join('');
-
-  return `<|begin_of_text|>${promptBody}<|start_header_id|>assistant<|end_header_id|>\n\n`;
-}
-
-export async function fetchAvailableLlmModels() {
-  return MODEL_CATALOG;
-}
-
-export async function getDownloadedLlmModels() {
-  await ensureModelsDir();
-  const files = await FileSystem.readDirectoryAsync(MODELS_DIR);
-
-  const downloaded = await Promise.all(
-    files
-      .filter((name) => name.endsWith('.gguf'))
-      .map(async (name) => {
-        const parsed = parseStorageFileName(name);
-        if (!parsed) {
-          return null;
-        }
-
-        const descriptor = MODEL_CATALOG.find(
-          (model) => model.family === parsed.family && model.fileName === parsed.fileName,
-        );
-        if (!descriptor) {
-          return null;
-        }
-
-        const info = await getCachedModelInfo(descriptor);
-        return info.valid ? descriptor : null;
-      }),
-  );
-
-  return downloaded.filter((descriptor): descriptor is LlmModelDescriptor => descriptor !== null);
-}
-
-export async function downloadLlmModel(
-  descriptor: LlmModelDescriptor,
+export async function downloadGemmaModel(
   onProgress?: ModelProgressCallback,
 ) {
   await ensureModelsDir();
 
-  const cached = await getCachedModelInfo(descriptor);
-  if (cached.valid) {
-    onProgress?.(`${descriptor.fileName} already cached`, 100);
-    return cached.path;
+  const targetPath = `${MODELS_DIR}${HF_FILENAME}`;
+  const fileInfo = await FileSystem.getInfoAsync(targetPath);
+  if (fileInfo.exists) {
+    onProgress?.(`Model already cached`, 100);
+    return targetPath;
   }
 
-  if (cached.exists) {
-    await FileSystem.deleteAsync(cached.path, { idempotent: true });
-    onProgress?.(`Removed incomplete cache for ${descriptor.fileName}`, 0);
-  }
-
-  const url = `https://huggingface.co/${descriptor.repo}/resolve/main/${descriptor.fileName}`;
-  const task = FileSystem.createDownloadResumable(url, cached.path, {}, (event) => {
+  const url = `https://huggingface.co/${HF_REPO}/resolve/main/${HF_FILENAME}`;
+  const task = FileSystem.createDownloadResumable(url, targetPath, {}, (event) => {
     if (!event.totalBytesExpectedToWrite) {
-      onProgress?.(`Downloading ${descriptor.fileName}...`, 0);
+      onProgress?.(`Downloading ${HF_FILENAME}...`, 0);
       return;
     }
     const percent = Math.round(
       (event.totalBytesWritten / event.totalBytesExpectedToWrite) * 100,
     );
-    onProgress?.(`Downloading ${descriptor.fileName}... ${percent}%`, percent);
+    onProgress?.(`Downloading... ${percent}%`, percent);
   });
 
-  onProgress?.(`Downloading ${descriptor.fileName}...`, 0);
+  onProgress?.(`Downloading...`, 0);
   const result = await task.downloadAsync();
   if (!result?.uri) {
-    throw new Error(`Failed to download ${descriptor.fileName}`);
+    throw new Error(`Failed to download ${HF_FILENAME}`);
   }
 
-  const completed = await getCachedModelInfo(descriptor);
-  if (!completed.valid) {
-    await FileSystem.deleteAsync(cached.path, { idempotent: true });
-    throw new Error(
-      `Downloaded ${descriptor.fileName}, but the file size does not match the expected model size. Please retry on a stable connection.`,
-    );
-  }
-
-  onProgress?.(`${descriptor.fileName} ready`, 100);
-  return completed.path;
+  onProgress?.(`Ready`, 100);
+  return targetPath;
 }
 
-export async function loadLlmModel(descriptor: LlmModelDescriptor) {
-  const cached = await getCachedModelInfo(descriptor);
-
-  if (descriptor.supported === false) {
-    throw new Error(`${descriptor.label} is disabled on this build.`);
-  }
-
-  if (!cached.exists) {
-    throw new Error(`Model file is missing: ${descriptor.fileName}`);
-  }
-
-  if (!cached.valid) {
-    throw new Error(
-      `${descriptor.label} is cached, but the file is incomplete or corrupt. Download it again before loading.`,
-    );
-  }
-
-  if (activeModelId === descriptor.id) {
-    return { descriptor };
-  }
-
-  try {
-    if (descriptor.engine === 'bitnet') {
-      const llama = getLlamaModule();
-      await llama.releaseAllLlama();
-      activeContext = null;
-      await loadBitnetModel(cached.path, descriptor.contextLength ?? 2048);
-    } else {
-      const llama = getLlamaModule();
-      await releaseBitnetModel().catch(() => undefined);
-      activeContext = await llama.initLlama({
-        model: cached.path,
-        use_mlock: true,
-        n_ctx: descriptor.contextLength ?? 2048,
-        n_gpu_layers: 1,
-      });
-    }
-
-    activeModelId = descriptor.id;
-    activeModelDescriptor = descriptor;
-    return { descriptor };
-  } catch (error) {
-    activeContext = null;
-    activeModelId = null;
-    activeModelDescriptor = null;
-
-    const message = error instanceof Error ? error.message : 'Unknown model load error';
-    throw new Error(`Failed to load ${descriptor.label}. Native error: ${message}`);
-  }
-}
-
-export async function inspectLlmModel(descriptor: LlmModelDescriptor) {
-  if (descriptor.engine !== 'llama') {
-    return null;
-  }
-
+export async function loadGemmaModel() {
   const llama = getLlamaModule();
-  const cached = await getCachedModelInfo(descriptor);
+  const path = `${MODELS_DIR}${HF_FILENAME}`;
+  const fileInfo = await FileSystem.getInfoAsync(path);
 
-  if (!llama.loadLlamaModelInfo || !cached.valid) {
-    return null;
+  if (!fileInfo.exists) {
+    throw new Error(`Model file is missing`);
   }
 
-  return llama.loadLlamaModelInfo(cached.path);
-}
+  if (activeContext && isActive) {
+    return;
+  }
 
-export async function unloadQwenModel() {
-  const llama = getLlamaModule();
   await llama.releaseAllLlama();
-  await releaseBitnetModel().catch(() => undefined);
+  activeContext = await llama.initLlama({
+    model: path,
+    use_mlock: true,
+    n_ctx: 2048,
+    n_gpu_layers: 1, // Utilize Android GPU via standard llama.cpp backend if available
+  });
+  isActive = true;
+}
+
+export async function unloadGemmaModel() {
+  const llama = getLlamaModule();
+  await llama.releaseAllLlama().catch(() => {});
   activeContext = null;
-  activeModelId = null;
-  activeModelDescriptor = null;
+  isActive = false;
 }
 
-export function getActiveQwenModel() {
-  return activeModelId;
+export function isGemmaLoaded() {
+  return isActive;
 }
 
-export async function sendQwenMessage(
+export async function sendGemmaMessage(
   messages: ChatMessage[],
   onToken?: (text: string) => void,
 ) {
-  if (!activeModelDescriptor) {
-    throw new Error('Load a local model before sending a message.');
-  }
-
-  if (activeModelDescriptor.engine === 'bitnet') {
-    const result = await generateBitnetText(buildBitnetPrompt(messages), 256, 0.7, 0.9);
-    onToken?.(result.text);
-    return result;
-  }
-
   if (!activeContext) {
-    throw new Error('Load a llama.rn model before sending a message.');
+    throw new Error('Load the model before sending a message.');
   }
 
   let output = '';
   const result = await activeContext.completion(
     {
       messages,
-      n_predict: 1000,
+      n_predict: 500,
       stop: STOP_WORDS,
     },
     (data) => {
@@ -388,12 +161,4 @@ export async function sendQwenMessage(
     text: output.trim(),
     tokensPerSecond: result.timings.predicted_per_second,
   };
-}
-
-export function getModelCatalog() {
-  return MODEL_CATALOG;
-}
-
-export function getModelDescriptorById(id: string) {
-  return findDescriptor(id);
 }

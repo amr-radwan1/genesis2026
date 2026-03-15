@@ -1,0 +1,291 @@
+import React, { useEffect, useState, useRef } from 'react';
+import {
+  StyleSheet,
+  Text,
+  View,
+  TextInput,
+  TouchableOpacity,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  ActivityIndicator,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  isModelDownloaded,
+  downloadGemmaModel,
+  loadGemmaModel,
+  isGemmaLoaded,
+  sendGemmaMessage,
+  ChatMessage,
+} from '@/services/llm-service';
+
+export default function ChatScreen() {
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [input, setInput] = useState('');
+  const [isReady, setIsReady] = useState(false);
+  const [loadingStatus, setLoadingStatus] = useState('Checking model...');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const scrollViewRef = useRef<ScrollView>(null);
+
+  useEffect(() => {
+    async function initializeLLM() {
+      try {
+        if (isGemmaLoaded()) {
+          setIsReady(true);
+          return;
+        }
+
+        const downloaded = await isModelDownloaded();
+        if (!downloaded) {
+          setLoadingStatus('Downloading Gemma 3 (1.5GB)... This may take a while.');
+          await downloadGemmaModel((status, percent) => {
+            setLoadingStatus(`Downloading: ${percent}%`);
+          });
+        }
+
+        setLoadingStatus('Loading model into memory...');
+        await loadGemmaModel();
+        setIsReady(true);
+      } catch (e: any) {
+        setLoadingStatus(`Error: ${e.message}`);
+      }
+    }
+
+    initializeLLM();
+  }, []);
+
+  const handleSend = async () => {
+    if (!input.trim() || !isReady || isGenerating) return;
+
+    const userMessage: ChatMessage = { role: 'user', content: input.trim() };
+    const newMessages = [...messages, userMessage];
+    setMessages(newMessages);
+    setInput('');
+    setIsGenerating(true);
+
+    try {
+      const assistantMessage: ChatMessage = { role: 'assistant', content: '' };
+      setMessages([...newMessages, assistantMessage]);
+
+      await sendGemmaMessage(newMessages, (token) => {
+        setMessages((prev) => {
+          const updated = [...prev];
+          const lastMsg = updated[updated.length - 1];
+          if (lastMsg && lastMsg.role === 'assistant') {
+            lastMsg.content = token;
+          }
+          return updated;
+        });
+      });
+    } catch (e: any) {
+      console.error(e);
+      setMessages((prev) => [
+        ...prev,
+        { role: 'system', content: `Error: ${e.message}` },
+      ]);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  if (!isReady) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#f97316" />
+        <Text style={styles.loadingText}>{loadingStatus}</Text>
+      </View>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Gemma Assistant</Text>
+        </View>
+
+        <ScrollView
+          ref={scrollViewRef}
+          style={styles.chatArea}
+          contentContainerStyle={styles.chatContent}
+          keyboardShouldPersistTaps="handled"
+          onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}>
+          {messages.length === 0 ? (
+            <Text style={styles.emptyText}>Ask me anything or paste your transcript!</Text>
+          ) : (
+            messages.map((msg, idx) => (
+              <View
+                key={idx}
+                style={[
+                  styles.messageBubble,
+                  msg.role === 'user' ? styles.userBubble : styles.assistantBubble,
+                  msg.role === 'system' && styles.systemBubble,
+                ]}>
+                <Text
+                  style={[
+                    styles.messageText,
+                    msg.role === 'user' ? styles.userText : styles.assistantText,
+                    msg.role === 'system' && styles.systemText,
+                  ]}>
+                  {msg.content}
+                </Text>
+              </View>
+            ))
+          )}
+          {isGenerating && (
+            <Text style={styles.generatingIndicator}>Generating...</Text>
+          )}
+        </ScrollView>
+
+        <View style={styles.inputArea}>
+          <TextInput
+            style={styles.input}
+            placeholder="Type a message..."
+            placeholderTextColor="#94a3b8"
+            value={input}
+            onChangeText={setInput}
+            multiline
+            maxLength={2000}
+          />
+          <TouchableOpacity
+            style={[styles.sendButton, (!input.trim() || isGenerating) && styles.sendButtonDisabled]}
+            onPress={handleSend}
+            disabled={!input.trim() || isGenerating}>
+            <Text style={styles.sendButtonText}>Send</Text>
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+  },
+  loadingContainer: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  loadingText: {
+    marginTop: 16,
+    color: '#475569',
+    fontSize: 16,
+    textAlign: 'center',
+  },
+  container: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+  },
+  header: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#0f172a',
+  },
+  chatArea: {
+    flex: 1,
+  },
+  chatContent: {
+    padding: 20,
+    gap: 12,
+  },
+  emptyText: {
+    textAlign: 'center',
+    color: '#94a3b8',
+    marginTop: 40,
+    fontSize: 15,
+  },
+  messageBubble: {
+    padding: 14,
+    borderRadius: 20,
+    maxWidth: '85%',
+  },
+  userBubble: {
+    alignSelf: 'flex-end',
+    backgroundColor: '#f97316',
+    borderBottomRightRadius: 4,
+  },
+  assistantBubble: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#f1f5f9',
+    borderBottomLeftRadius: 4,
+  },
+  systemBubble: {
+    alignSelf: 'center',
+    backgroundColor: '#fee2e2',
+    maxWidth: '100%',
+  },
+  messageText: {
+    fontSize: 16,
+    lineHeight: 22,
+  },
+  userText: {
+    color: '#ffffff',
+  },
+  assistantText: {
+    color: '#334155',
+  },
+  systemText: {
+    color: '#991b1b',
+    fontSize: 13,
+  },
+  generatingIndicator: {
+    color: '#94a3b8',
+    fontSize: 13,
+    fontStyle: 'italic',
+    marginLeft: 10,
+  },
+  inputArea: {
+    flexDirection: 'row',
+    padding: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9',
+    backgroundColor: '#ffffff',
+    alignItems: 'flex-end',
+    gap: 10,
+  },
+  input: {
+    flex: 1,
+    minHeight: 44,
+    maxHeight: 120,
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 22,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 12,
+    fontSize: 16,
+    color: '#0f172a',
+  },
+  sendButton: {
+    backgroundColor: '#f97316',
+    height: 44,
+    paddingHorizontal: 20,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sendButtonDisabled: {
+    backgroundColor: '#fed7aa',
+  },
+  sendButtonText: {
+    color: '#ffffff',
+    fontWeight: '700',
+    fontSize: 15,
+  },
+});

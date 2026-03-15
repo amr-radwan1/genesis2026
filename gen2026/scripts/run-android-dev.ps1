@@ -43,150 +43,6 @@ function Invoke-RobocopySyncWithAndroid {
   }
 }
 
-# ── Inject BitNet native module into the Android project ──
-function Inject-BitnetNativeModule {
-  param(
-    [string]$ProjectRoot  # The short-path build dir (e.g. C:\g26)
-  )
-
-  $androidApp   = Join-Path $ProjectRoot "android\app"
-  $javaDir      = Join-Path $androidApp  "src\main\java\com\anonymous\gen2026"
-  $jniDir       = Join-Path $androidApp  "src\main\jni"
-  $nativeDir    = Join-Path $ProjectRoot "native\bitnet"
-
-  # Source trees from the repo root (parent of gen2026)
-  $repoRoot     = Split-Path -Parent $ProjectRoot   # only if vendor backup is there
-  # The vendor backup lives at the same level as gen2026 in the monorepo
-  $vendorBitnet = Join-Path $ProjectRoot "..\gen2026_vendor_backup\bitnet.cpp"
-  if (-not (Test-Path $vendorBitnet)) {
-    # Try the absolute path from the original source
-    $vendorBitnet = "C:\Users\yousi\OneDrive\Desktop\projects\llm_app\genesis2026\gen2026_vendor_backup\bitnet.cpp"
-  }
-
-  Write-Host "Injecting BitNet native module..."
-
-  # 1) Copy C++/CMake JNI sources
-  if (-not (Test-Path $jniDir)) {
-    New-Item -ItemType Directory -Path $jniDir -Force | Out-Null
-  }
-  Copy-Item (Join-Path $nativeDir "bitnet_jni.cpp")   $jniDir -Force
-  Copy-Item (Join-Path $nativeDir "CMakeLists.txt")   $jniDir -Force
-
-  # 2) Copy BitNet C++ tree from vendor backup into jni/bitnet_cpp/
-  $bitnetCppDest = Join-Path $jniDir "bitnet_cpp"
-  if (Test-Path $bitnetCppDest) {
-    Remove-Item $bitnetCppDest -Recurse -Force
-  }
-
-  New-Item -ItemType Directory -Path $bitnetCppDest -Force | Out-Null
-
-  # Copy src/ (ggml-bitnet-lut.cpp, ggml-bitnet-mad.cpp)
-  $srcDest = Join-Path $bitnetCppDest "src"
-  New-Item -ItemType Directory -Path $srcDest -Force | Out-Null
-  Copy-Item (Join-Path $vendorBitnet "src\*") $srcDest -Recurse -Force
-
-  # Copy include/ (headers + kernel config)
-  $incDest = Join-Path $bitnetCppDest "include"
-  New-Item -ItemType Directory -Path $incDest -Force | Out-Null
-  Copy-Item (Join-Path $vendorBitnet "include\*") $incDest -Recurse -Force
-
-  # Copy 3rdparty/llama.cpp/
-  $llamaDest = Join-Path $bitnetCppDest "3rdparty\llama.cpp"
-  New-Item -ItemType Directory -Path $llamaDest -Force | Out-Null
-  # Only copy what we need to avoid copying gigabytes of GPU shaders etc.
-  # include/
-  New-Item -ItemType Directory -Path (Join-Path $llamaDest "include") -Force | Out-Null
-  Copy-Item (Join-Path $vendorBitnet "3rdparty\llama.cpp\include\*") (Join-Path $llamaDest "include") -Force
-  # src/
-  New-Item -ItemType Directory -Path (Join-Path $llamaDest "src") -Force | Out-Null
-  Copy-Item (Join-Path $vendorBitnet "3rdparty\llama.cpp\src\*.cpp") (Join-Path $llamaDest "src") -Force
-  Copy-Item (Join-Path $vendorBitnet "3rdparty\llama.cpp\src\*.h")   (Join-Path $llamaDest "src") -Force
-  # ggml/ include + src (CPU-only C files)
-  New-Item -ItemType Directory -Path (Join-Path $llamaDest "ggml\include") -Force | Out-Null
-  Copy-Item (Join-Path $vendorBitnet "3rdparty\llama.cpp\ggml\include\ggml.h")         (Join-Path $llamaDest "ggml\include") -Force
-  Copy-Item (Join-Path $vendorBitnet "3rdparty\llama.cpp\ggml\include\ggml-alloc.h")   (Join-Path $llamaDest "ggml\include") -Force
-  Copy-Item (Join-Path $vendorBitnet "3rdparty\llama.cpp\ggml\include\ggml-backend.h") (Join-Path $llamaDest "ggml\include") -Force
-
-  New-Item -ItemType Directory -Path (Join-Path $llamaDest "ggml\src") -Force | Out-Null
-  $ggmlSrcFiles = @(
-    "ggml.c", "ggml-alloc.c", "ggml-backend.cpp", "ggml-quants.c", "ggml-quants.h",
-    "ggml-aarch64.c", "ggml-aarch64.h", "ggml-common.h", "ggml-impl.h",
-    "ggml-cpu-impl.h", "ggml-backend-impl.h"
-  )
-  foreach ($f in $ggmlSrcFiles) {
-    $srcPath = Join-Path $vendorBitnet "3rdparty\llama.cpp\ggml\src\$f"
-    if (Test-Path $srcPath) {
-      Copy-Item $srcPath (Join-Path $llamaDest "ggml\src") -Force
-    }
-  }
-
-  # 3) Copy Java bridge files
-  Copy-Item (Join-Path $nativeDir "BitnetBridge.java")  $javaDir -Force
-  Copy-Item (Join-Path $nativeDir "BitnetPackage.java") $javaDir -Force
-
-  # 4) Patch build.gradle to add externalNativeBuild
-  $buildGradle = Join-Path $androidApp "build.gradle"
-  $gradleContent = Get-Content $buildGradle -Raw
-
-  if ($gradleContent -notmatch "bitnet_jni") {
-    # Add externalNativeBuild block inside android { defaultConfig { } } section
-    $cmakeBlock = @"
-
-    externalNativeBuild {
-        cmake {
-            path "src/main/jni/CMakeLists.txt"
-        }
-    }
-"@
-    # Insert before the last closing brace of the android {} block
-    # Find "buildTypes {" and insert before it
-    $gradleContent = $gradleContent -replace '(buildTypes\s*\{)', "$cmakeBlock`n    `$1"
-
-    # Add NDK ABI filter for arm64 only
-    $ndkBlock = @"
-
-        ndk {
-            abiFilters "arm64-v8a"
-        }
-        externalNativeBuild {
-            cmake {
-                cppFlags "-std=c++20 -frtti -fexceptions"
-                arguments "-DANDROID_STL=c++_shared"
-            }
-        }
-"@
-    $gradleContent = $gradleContent -replace '(targetSdkVersion\s+\d+)', "`$1$ndkBlock"
-
-    Set-Content $buildGradle $gradleContent -NoNewline
-    Write-Host "  Patched build.gradle with CMake config"
-  }
-
-  # 5) Register BitnetPackage in MainApplication
-  $mainAppPath = Get-ChildItem -Path $javaDir -Filter "MainApplication.*" -Recurse | Select-Object -First 1 -ExpandProperty FullName
-  if ($mainAppPath -and (Test-Path $mainAppPath)) {
-    $mainAppContent = Get-Content $mainAppPath -Raw
-    if ($mainAppContent -notmatch "BitnetPackage") {
-      if ($mainAppPath -match "\.kt$") {
-        # Kotlin - add to getPackages() override
-        $mainAppContent = $mainAppContent -replace '(override fun getPackages\(\).*?add\()', "`$1`n          add(BitnetPackage())`n          "
-        # If that pattern doesn't work, try the packages list pattern
-        if ($mainAppContent -notmatch "BitnetPackage") {
-          $mainAppContent = $mainAppContent -replace '(PackageList\(this\)\.packages)', "`$1.apply { add(BitnetPackage()) }"
-        }
-      } else {
-        # Java
-        $mainAppContent = $mainAppContent -replace '(PackageList\(this\)\.getPackages\(\))', "`$1;`n              packages.add(new BitnetPackage())"
-      }
-      Set-Content $mainAppPath $mainAppContent -NoNewline
-      Write-Host "  Registered BitnetPackage in MainApplication"
-    }
-  } else {
-    Write-Host "  WARNING: Could not find MainApplication to register BitnetPackage"
-  }
-
-  Write-Host "BitNet native module injection complete."
-}
-
 $sourceRoot = Split-Path -Parent $PSScriptRoot
 $adb = Join-Path $env:LOCALAPPDATA "Android\Sdk\platform-tools\adb.exe"
 $sdkRoot = Join-Path $env:LOCALAPPDATA "Android\Sdk"
@@ -230,15 +86,22 @@ try {
     Remove-Item ".\node_modules\llama.rn\android\build" -Recurse -Force
   }
 
+  # Clean stale android directory if it contains old BitNet artifacts
+  $buildGradlePath = Join-Path $ShortRoot "android\app\build.gradle"
+  if (Test-Path $buildGradlePath) {
+    $buildGradleContent = Get-Content $buildGradlePath -Raw -ErrorAction SilentlyContinue
+    if ($buildGradleContent -match "bitnet_jni") {
+      Write-Host "Removing stale BitNet android directory for clean prebuild..."
+      Remove-Item (Join-Path $ShortRoot "android") -Recurse -Force
+    }
+  }
+
   if (-not (Test-Path (Join-Path $ShortRoot "android"))) {
     npx expo prebuild --clean --platform android
     if ($LASTEXITCODE -ne 0) {
       throw "expo prebuild failed."
     }
   }
-
-  # Inject BitNet native module after prebuild generates the android/ directory
-  Inject-BitnetNativeModule -ProjectRoot $ShortRoot
 
   Push-Location android
   try {
@@ -266,7 +129,7 @@ try {
     }
   }
 
-  Start-Process cmd.exe -ArgumentList "/c", "cd /d $ShortRoot && set NODE_ENV=development&& npx expo start --dev-client --host lan --port $Port --non-interactive > expo-dev.log 2>&1" -WindowStyle Hidden
+  Start-Process cmd.exe -ArgumentList "/c", "cd /d $ShortRoot && set NODE_ENV=development&& npx expo start -c --dev-client --host lan --port $Port --non-interactive > expo-dev.log 2>&1" -WindowStyle Hidden
   Start-Sleep -Seconds 8
 
   $deviceLine = & $adb devices | Select-String "device$" | Select-Object -First 1
