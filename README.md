@@ -31,22 +31,25 @@ No cloud inference is required for the main AI pipeline.
 
 ---
 
-## Project structure
+## Repository structure
 
 ```text
-app/
-	(tabs)/
-		index.tsx      # Record + realtime transcript + file upload transcription
-		memory.tsx     # Memory management UI (Notes / Tasks / Facts)
-		chat.tsx       # Chat UI powered by Gemma + relevant memory context
-services/
-	whisper-service.ts     # Whisper model handling, WAV processing, live/file transcription
-	llm-service.ts         # Gemma download/load/inference + memory extraction
-	memory-store.ts        # In-memory store for notes/tasks/facts
-	background-service.ts  # Android foreground notification for live transcription
-	native-runtime.ts      # Native runtime guards
-scripts/
-	run-android-dev.ps1    # Recommended Windows Android dev flow
+gen2026/
+	app/
+		(tabs)/
+			index.tsx      # Record + realtime transcript + file upload transcription
+			memory.tsx     # Memory management UI (Notes / Tasks / Facts)
+			chat.tsx       # Chat UI powered by Gemma + relevant memory context
+	services/
+		whisper-service.ts     # Whisper model handling, WAV processing, live/file transcription
+		llm-service.ts         # Gemma download/load/inference + memory extraction
+		memory-store.ts        # In-memory store for notes/tasks/facts
+		background-service.ts  # Android foreground notification for live transcription
+		native-runtime.ts      # Native runtime guards
+	scripts/
+		run-android-dev.ps1    # Recommended Windows Android dev flow
+gen2026_vendor_backup/
+	bitnet.cpp/              # Backup/vendor folder
 ```
 
 ---
@@ -71,9 +74,10 @@ Use an Android development build (dev client).
 
 ## Quick start (recommended on Windows)
 
-From the `gen2026` folder:
+From the repository root:
 
 ```powershell
+cd gen2026
 npm run android:devclient
 ```
 
@@ -91,6 +95,7 @@ This script will:
 ## Manual setup (if needed)
 
 ```powershell
+cd gen2026
 npm install
 npx expo start --dev-client --host lan --port 8083
 ```
@@ -158,6 +163,8 @@ If Gemma load fails due to stale/corrupt cache, clear app storage or reinstall t
 ---
 
 ## Scripts
+
+Run these inside `gen2026/`:
 
 - `npm run start` — start Expo
 - `npm run android` — run Android app
