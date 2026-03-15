@@ -19,6 +19,7 @@ import {
   sendGemmaMessage,
   ChatMessage,
 } from '@/services/llm-service';
+import { getMemorySnapshot } from '@/services/memory-store';
 
 export default function ChatScreen() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -55,6 +56,33 @@ export default function ChatScreen() {
     initializeLLM();
   }, []);
 
+  function buildMemorySystemMessage(): ChatMessage | null {
+    const { notes, todos, customs } = getMemorySnapshot();
+    const parts: string[] = [];
+
+    if (notes.length > 0) {
+      parts.push('Notes:\n' + notes.map((n) => `- ${n.text}`).join('\n'));
+    }
+    if (todos.length > 0) {
+      parts.push(
+        'Todos:\n' +
+          todos.map((t) => `- [${t.done ? 'x' : ' '}] ${t.text}`).join('\n'),
+      );
+    }
+    if (customs.length > 0) {
+      parts.push('Key facts:\n' + customs.map((c) => `- ${c.label}: ${c.value}`).join('\n'));
+    }
+
+    if (parts.length === 0) return null;
+
+    return {
+      role: 'system',
+      content:
+        "You are a helpful AI assistant. Use the user's personal memory below as context when answering.\n\n" +
+        parts.join('\n\n'),
+    };
+  }
+
   const handleSend = async () => {
     if (!input.trim() || !isReady || isGenerating) return;
 
@@ -68,7 +96,12 @@ export default function ChatScreen() {
       const assistantMessage: ChatMessage = { role: 'assistant', content: '' };
       setMessages([...newMessages, assistantMessage]);
 
-      await sendGemmaMessage(newMessages, (token) => {
+      const systemMsg = buildMemorySystemMessage();
+      const messagesForModel: ChatMessage[] = systemMsg
+        ? [systemMsg, ...newMessages]
+        : newMessages;
+
+      await sendGemmaMessage(messagesForModel, (token) => {
         setMessages((prev) => {
           const updated = [...prev];
           const lastMsg = updated[updated.length - 1];

@@ -5,9 +5,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { checkAndAutoLoadGemma } from '@/services/llm-service';
 
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
+
+  React.useEffect(() => {
+    checkAndAutoLoadGemma();
+  }, []);
 
   return (
     <Tabs

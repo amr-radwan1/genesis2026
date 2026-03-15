@@ -1,6 +1,7 @@
 import * as FileSystem from 'expo-file-system/legacy';
 
 import { assertNativeInferenceAvailable } from '@/services/native-runtime';
+import { addNote, addTodo, addCustomEntry } from '@/services/memory-store';
 
 export type ChatMessage = {
   role: 'system' | 'user' | 'assistant';
@@ -136,6 +137,20 @@ export function isGemmaLoaded() {
   return isActive;
 }
 
+export async function checkAndAutoLoadGemma() {
+  try {
+    if (isActive) return;
+    const downloaded = await isModelDownloaded();
+    if (downloaded) {
+      console.log('[LLM] Auto-loading Gemma at startup...');
+      await loadGemmaModel();
+      console.log('[LLM] Gemma loaded successfully.');
+    }
+  } catch (err) {
+    console.error('[LLM] Auto-load failed:', err);
+  }
+}
+
 export async function sendGemmaMessage(
   messages: ChatMessage[],
   onToken?: (text: string) => void,
@@ -161,4 +176,66 @@ export async function sendGemmaMessage(
     text: output.trim(),
     tokensPerSecond: result.timings.predicted_per_second,
   };
+}
+
+/**
+ * Runs Gemma on a transcript to extract notes, todos, and key-value facts,
+ * then adds them to the memory store. Fire-and-forget — errors are swallowed.
+ */
+export async function extractMemoryFromTranscript(transcript: string): Promise<void> {
+  if (!activeContext || !isActive) return;
+
+  // Cap transcript length to keep it manageable for the 1B model
+  const trimmed = transcript.trim().slice(0, 1200);
+  if (!trimmed) return;
+
+  const prompt: ChatMessage[] = [
+    {
+      role: 'system',
+      content:
+        'You are a memory extraction assistant. Given a transcription, extract ONLY genuinely important information worth remembering long-term. Return a JSON object with exactly these fields:\n- "notes": array of strings (key facts, insights, decisions)\n- "todos": array of strings (action items or tasks)\n- "custom": array of {"label": string, "value": string} (important named facts like names, goals, dates)\n\nIf nothing is worth remembering, return {"notes":[],"todos":[],"custom":[]}.\nReturn ONLY valid JSON. No explanation, no markdown.',
+    },
+    {
+      role: 'user',
+      content: `Transcription:\n"""\n${trimmed}\n"""`,
+    },
+  ];
+
+  try {
+    let raw = '';
+    await activeContext.completion(
+      { messages: prompt, n_predict: 300, stop: STOP_WORDS },
+      (data) => { raw += data.token; },
+    );
+
+    // Extract JSON even if there's surrounding text
+    const match = raw.match(/\{[\s\S]*\}/);
+    if (!match) return;
+
+    const parsed = JSON.parse(match[0]);
+
+    if (Array.isArray(parsed.notes)) {
+      for (const text of parsed.notes) {
+        if (typeof text === 'string' && text.trim()) {
+          addNote(text.trim(), 'ai');
+        }
+      }
+    }
+    if (Array.isArray(parsed.todos)) {
+      for (const text of parsed.todos) {
+        if (typeof text === 'string' && text.trim()) {
+          addTodo(text.trim(), 'ai');
+        }
+      }
+    }
+    if (Array.isArray(parsed.custom)) {
+      for (const entry of parsed.custom) {
+        if (entry && typeof entry.label === 'string' && typeof entry.value === 'string') {
+          addCustomEntry(entry.label.trim(), entry.value.trim());
+        }
+      }
+    }
+  } catch {
+    // Silent failure — memory extraction is best-effort
+  }
 }

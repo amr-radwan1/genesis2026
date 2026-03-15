@@ -25,6 +25,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useWhisper } from '@/hooks/use-whisper';
 import { transcribeAudio } from '@/services/whisper-service';
+import { isGemmaLoaded, extractMemoryFromTranscript } from '@/services/llm-service';
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -120,10 +121,14 @@ const SplineBlob = ({ isRecording }: { isRecording: boolean }) => {
   );
 };
 
+// Minimum new characters before triggering a live memory extraction
+const LIVE_EXTRACT_THRESHOLD = 400;
+
 export default function RecordScreen() {
   const [isRecording, setIsRecording] = useState(false);
   const { startLiveTranscription, stopLiveTranscription, currentTranscript } = useWhisper();
   const scrollViewRef = useRef<ScrollView>(null);
+  const lastExtractedPosRef = useRef(0);
 
   // File upload state
   const [audioFileName, setAudioFileName] = useState<string | null>(null);
@@ -136,6 +141,16 @@ export default function RecordScreen() {
   useEffect(() => {
     if (scrollViewRef.current) {
       scrollViewRef.current.scrollToEnd({ animated: true });
+    }
+
+    // Trigger memory extraction when enough new transcript has accumulated during live recording
+    if (isRecording && isGemmaLoaded()) {
+      const newChars = currentTranscript.length - lastExtractedPosRef.current;
+      if (newChars >= LIVE_EXTRACT_THRESHOLD) {
+        const segment = currentTranscript.slice(lastExtractedPosRef.current);
+        lastExtractedPosRef.current = currentTranscript.length;
+        extractMemoryFromTranscript(segment);
+      }
     }
   }, [currentTranscript]);
 
@@ -166,6 +181,10 @@ export default function RecordScreen() {
         setWhisperProgress(message);
       });
       setFileTranscript(result);
+      // Auto-populate memory from the file transcript (fire-and-forget)
+      if (isGemmaLoaded()) {
+        extractMemoryFromTranscript(result);
+      }
     } catch (error) {
       setFileError(error instanceof Error ? error.message : 'Transcription failed.');
     } finally {
@@ -178,6 +197,12 @@ export default function RecordScreen() {
       if (isRecording) {
         setIsRecording(false);
         await stopLiveTranscription();
+        // Extract any remaining transcript that hasn't been processed yet
+        const remaining = currentTranscript.slice(lastExtractedPosRef.current);
+        if (remaining.trim() && isGemmaLoaded()) {
+          extractMemoryFromTranscript(remaining);
+        }
+        lastExtractedPosRef.current = 0;
       } else {
         setIsRecording(true);
         await startLiveTranscription(() => {});
