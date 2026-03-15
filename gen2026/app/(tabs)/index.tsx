@@ -12,11 +12,12 @@ import {
 
 import {
   ChatMessage,
-  downloadQwenModel,
-  fetchAvailableQwenModels,
+  downloadLlmModel,
+  fetchAvailableLlmModels,
   getActiveQwenModel,
-  getDownloadedQwenModels,
-  loadQwenModel,
+  getDownloadedLlmModels,
+  LlmModelDescriptor,
+  loadLlmModel,
   sendQwenMessage,
   unloadQwenModel,
 } from '@/services/llm-service';
@@ -32,6 +33,15 @@ import {
 const SYSTEM_PROMPT =
   'You are a concise on-device assistant. Answer directly and keep responses useful.';
 
+function formatModelSize(sizeBytes?: number) {
+  if (!sizeBytes || sizeBytes <= 0) {
+    return 'Size unknown';
+  }
+
+  const gib = sizeBytes / 1024 / 1024 / 1024;
+  return `${gib.toFixed(2)} GB`;
+}
+
 export default function HomeScreen() {
   const nativeStatus = useMemo(() => getNativeInferenceStatus(), []);
 
@@ -46,9 +56,9 @@ export default function HomeScreen() {
   const [liveActive, setLiveActive] = useState(false);
   const [liveBusy, setLiveBusy] = useState(false);
 
-  const [availableModels, setAvailableModels] = useState<string[]>([]);
-  const [downloadedModels, setDownloadedModels] = useState<string[]>([]);
-  const [selectedModel, setSelectedModel] = useState<string | null>(null);
+  const [availableModels, setAvailableModels] = useState<LlmModelDescriptor[]>([]);
+  const [downloadedModels, setDownloadedModels] = useState<LlmModelDescriptor[]>([]);
+  const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
   const [llmBusy, setLlmBusy] = useState(false);
   const [llmProgress, setLlmProgress] = useState('');
   const [composer, setComposer] = useState('');
@@ -61,6 +71,15 @@ export default function HomeScreen() {
   const activeModelName = getActiveQwenModel();
   const visibleChat = chat.filter((message) => message.role !== 'system');
   const latestCapture = liveTranscript || transcript;
+  const selectedModel =
+    availableModels.find((model) => model.id === selectedModelId) ??
+    downloadedModels.find((model) => model.id === selectedModelId) ??
+    null;
+  const activeModelDescriptor =
+    availableModels.find((model) => model.id === activeModelName) ??
+    downloadedModels.find((model) => model.id === activeModelName) ??
+    null;
+  const selectedModelUnsupported = selectedModel?.supported === false;
 
   const refreshNativeState = useCallback(async () => {
     if (!nativeStatus.available) {
@@ -70,14 +89,14 @@ export default function HomeScreen() {
     try {
       const [whisperStatus, models, downloaded] = await Promise.all([
         getWhisperModelStatus(),
-        fetchAvailableQwenModels(),
-        getDownloadedQwenModels(),
+        fetchAvailableLlmModels(),
+        getDownloadedLlmModels(),
       ]);
 
       setWhisperReady(whisperStatus.ready);
       setAvailableModels(models);
       setDownloadedModels(downloaded);
-      setSelectedModel((current) => current ?? downloaded[0] ?? models[0] ?? null);
+      setSelectedModelId((current) => current ?? downloaded[0]?.id ?? models[0]?.id ?? null);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to read native state.';
       setErrorMessage(message);
@@ -224,7 +243,7 @@ export default function HomeScreen() {
 
   async function handleDownloadOrLoadModel() {
     if (!selectedModel) {
-      setErrorMessage('Choose a Qwen model file.');
+      setErrorMessage('Choose a local model file.');
       return;
     }
 
@@ -233,15 +252,17 @@ export default function HomeScreen() {
     setErrorMessage(null);
 
     try {
-      if (!downloadedModels.includes(selectedModel)) {
-        await downloadQwenModel(selectedModel, (message) => {
+      const isDownloaded = downloadedModels.some((model) => model.id === selectedModel.id);
+
+      if (!isDownloaded) {
+        await downloadLlmModel(selectedModel, (message) => {
           setLlmProgress(message);
         });
       }
 
-      await loadQwenModel(selectedModel);
-      setDownloadedModels(await getDownloadedQwenModels());
-      setLlmProgress(`${selectedModel} loaded`);
+      await loadLlmModel(selectedModel);
+      setDownloadedModels(await getDownloadedLlmModels());
+      setLlmProgress(`${selectedModel.label} loaded`);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Model load failed.';
       setErrorMessage(message);
@@ -256,7 +277,6 @@ export default function HomeScreen() {
     }
 
     const nextMessages: ChatMessage[] = [...chat, { role: 'user', content: composer.trim() }];
-    const previousMessages = chat;
     setComposer('');
     setErrorMessage(null);
     setLlmBusy(true);
@@ -275,7 +295,7 @@ export default function HomeScreen() {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Inference failed.';
       setErrorMessage(message);
-      setChat(previousMessages);
+      setChat([...nextMessages, { role: 'assistant', content: `Inference failed: ${message}` }]);
     } finally {
       setLlmBusy(false);
     }
@@ -322,8 +342,8 @@ export default function HomeScreen() {
             <Text style={styles.metricValue}>{whisperReady ? 'Loaded' : 'Missing'}</Text>
           </View>
           <View style={styles.metricCard}>
-            <Text style={styles.metricLabel}>Qwen</Text>
-            <Text style={styles.metricValue}>{activeModelName ?? 'Not loaded'}</Text>
+            <Text style={styles.metricLabel}>Local LLM</Text>
+            <Text style={styles.metricValue}>{activeModelDescriptor?.label ?? 'Not loaded'}</Text>
           </View>
           <View style={styles.metricCard}>
             <Text style={styles.metricLabel}>Mic</Text>
@@ -447,7 +467,7 @@ export default function HomeScreen() {
           <View style={styles.panelHeader}>
             <Text style={styles.panelTitle}>Assistant Console</Text>
             <Text style={styles.panelSubtitle}>
-              Load a Qwen GGUF on device, then move between spoken capture and local chat without leaving the same workspace.
+              Load a local GGUF on device, then move between spoken capture and local chat without leaving the same workspace.
             </Text>
           </View>
 
@@ -456,19 +476,26 @@ export default function HomeScreen() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.modelStrip}>
             {availableModels.map((model) => {
-              const isSelected = selectedModel === model;
-              const isDownloaded = downloadedModels.includes(model);
+              const isSelected = selectedModelId === model.id;
+              const isDownloaded = downloadedModels.some((item) => item.id === model.id);
 
               return (
                 <Pressable
-                  key={model}
+                  key={model.id}
                   style={[
                     styles.modelCard,
                     isSelected && styles.modelCardSelected,
                     isDownloaded && styles.modelCardDownloaded,
+                    model.supported === false && styles.modelCardDisabled,
                   ]}
-                  onPress={() => setSelectedModel(model)}>
-                  <Text style={styles.modelCardTitle}>{model}</Text>
+                  onPress={() => setSelectedModelId(model.id)}>
+                  <Text style={styles.modelCardTitle}>{model.label}</Text>
+                  <View style={styles.modelMetaRow}>
+                    <Text style={styles.modelFamilyBadge}>{model.family.toUpperCase()}</Text>
+                    <Text style={styles.modelSizeText}>{formatModelSize(model.sizeBytes)}</Text>
+                  </View>
+                  <Text style={styles.modelCardMeta}>{model.fileName}</Text>
+                  {model.note ? <Text style={styles.modelNote}>{model.note}</Text> : null}
                   <Text style={styles.modelCardMeta}>{isDownloaded ? 'Cached locally' : 'Remote file'}</Text>
                 </Pressable>
               );
@@ -479,9 +506,14 @@ export default function HomeScreen() {
             <Pressable
               style={styles.primaryAction}
               onPress={handleDownloadOrLoadModel}
-              disabled={llmBusy || !selectedModel}>
+              disabled={llmBusy || !selectedModel || selectedModelUnsupported}>
               <Text style={styles.primaryActionText}>
-                {selectedModel && downloadedModels.includes(selectedModel) ? 'Load Selected Model' : 'Download + Load Model'}
+                {selectedModelUnsupported
+                  ? 'Unsupported On This Device'
+                  : selectedModel &&
+                    downloadedModels.some((model) => model.id === selectedModel.id)
+                  ? 'Load Selected Model'
+                  : 'Download + Load Model'}
               </Text>
             </Pressable>
             <Pressable style={styles.secondaryAction} onPress={handleResetChat}>
@@ -510,7 +542,7 @@ export default function HomeScreen() {
                       message.role === 'user' ? styles.userMessageCard : styles.assistantMessageCard,
                     ]}>
                     <Text style={styles.messageTag}>
-                      {message.role === 'user' ? 'You' : 'Qwen'}
+                      {message.role === 'user' ? 'You' : activeModelDescriptor?.label ?? 'Assistant'}
                     </Text>
                     <Text
                       style={[
@@ -555,7 +587,7 @@ export default function HomeScreen() {
             </View>
             <View style={styles.footerStats}>
               <Text style={styles.footerStatLabel}>Model</Text>
-              <Text style={styles.footerStatValue}>{activeModelName ?? 'Not loaded'}</Text>
+              <Text style={styles.footerStatValue}>{activeModelDescriptor?.label ?? 'Not loaded'}</Text>
               <Text style={styles.footerDivider}>•</Text>
               <Text style={styles.footerStatLabel}>Speed</Text>
               <Text style={styles.footerStatValue}>
@@ -843,6 +875,9 @@ const styles = StyleSheet.create({
   modelCardDownloaded: {
     shadowColor: '#14b8a6',
   },
+  modelCardDisabled: {
+    opacity: 0.45,
+  },
   modelCardTitle: {
     color: '#f8fafc',
     fontSize: 13,
@@ -851,6 +886,28 @@ const styles = StyleSheet.create({
   modelCardMeta: {
     color: '#94a3b8',
     fontSize: 12,
+  },
+  modelMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  modelFamilyBadge: {
+    color: '#9bd7cb',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+  modelSizeText: {
+    color: '#cbd5e1',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  modelNote: {
+    color: '#dbe4ee',
+    fontSize: 12,
+    lineHeight: 18,
   },
   chatShell: {
     backgroundColor: '#0b1524',

@@ -33,6 +33,13 @@
       "expo-dev-client",
       "expo-router",
       [
+        "llama.rn",
+        {
+          "enableOpenCLAndHexagon": true,
+          "forceCxx20": true
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "image": "./assets/images/splash-icon.png",
