@@ -1,8 +1,9 @@
 /**
  * memory-store.ts
  *
- * Simple in-memory store for the Memory tab.
- * Eventually this will be populated by AI from live transcriptions.
+ * Shared in-memory store for the Memory tab.
+ * Eventually notes and todos will be auto-populated by the AI
+ * from live transcriptions. For now, placeholder data is seeded.
  */
 
 export type Note = {
@@ -34,10 +35,77 @@ type MemoryStore = {
   listeners: Set<() => void>;
 };
 
+function uid() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
 const store: MemoryStore = {
-  notes: [],
-  todos: [],
-  customs: [],
+  // ── Placeholder notes (will be AI-generated from transcriptions) ──────────
+  notes: [
+    {
+      id: uid(),
+      text: 'Discussed project timeline with Sarah — deadline pushed to end of April.',
+      createdAt: Date.now() - 1000 * 60 * 30,
+      source: 'ai',
+    },
+    {
+      id: uid(),
+      text: 'Key insight: users want faster onboarding, not more features.',
+      createdAt: Date.now() - 1000 * 60 * 90,
+      source: 'ai',
+    },
+    {
+      id: uid(),
+      text: 'Remember to follow up on the API credentials from the dev team.',
+      createdAt: Date.now() - 1000 * 60 * 120,
+      source: 'manual',
+    },
+  ],
+  // ── Placeholder todos ─────────────────────────────────────────────────────
+  todos: [
+    {
+      id: uid(),
+      text: 'Review meeting notes from Tuesday standup',
+      done: true,
+      createdAt: Date.now() - 1000 * 60 * 200,
+      source: 'ai',
+    },
+    {
+      id: uid(),
+      text: 'Send revised proposal doc to client by EOD',
+      done: false,
+      createdAt: Date.now() - 1000 * 60 * 60,
+      source: 'ai',
+    },
+    {
+      id: uid(),
+      text: 'Book flight for conference in Austin',
+      done: false,
+      createdAt: Date.now() - 1000 * 60 * 45,
+      source: 'manual',
+    },
+  ],
+  // ── Placeholder custom entries ────────────────────────────────────────────
+  customs: [
+    {
+      id: uid(),
+      label: 'Primary Goal',
+      value: 'Ship the MVP by end of Q2 with at least 3 beta users.',
+      createdAt: Date.now() - 1000 * 60 * 300,
+    },
+    {
+      id: uid(),
+      label: 'Preferred Name',
+      value: 'Alex',
+      createdAt: Date.now() - 1000 * 60 * 500,
+    },
+    {
+      id: uid(),
+      label: 'Current Focus Area',
+      value: 'On-device AI inference and voice-first UX.',
+      createdAt: Date.now() - 1000 * 60 * 400,
+    },
+  ],
   listeners: new Set(),
 };
 
@@ -45,17 +113,13 @@ function notify() {
   store.listeners.forEach((l) => l());
 }
 
-function uid() {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-}
-
-// --- Subscribe/Unsubscribe ---
+// ── Subscribe/Unsubscribe ──────────────────────────────────────────────────
 export function subscribeMemory(listener: () => void) {
   store.listeners.add(listener);
   return () => store.listeners.delete(listener);
 }
 
-// --- Snapshots ---
+// ── Snapshots ──────────────────────────────────────────────────────────────
 export function getMemorySnapshot() {
   return {
     notes: [...store.notes],
@@ -64,7 +128,7 @@ export function getMemorySnapshot() {
   };
 }
 
-// --- Notes ---
+// ── Notes ──────────────────────────────────────────────────────────────────
 export function addNote(text: string, source: Note['source'] = 'manual'): Note {
   const note: Note = { id: uid(), text, createdAt: Date.now(), source };
   store.notes.unshift(note);
@@ -82,7 +146,7 @@ export function deleteNote(id: string) {
   notify();
 }
 
-// --- Todos ---
+// ── Todos ──────────────────────────────────────────────────────────────────
 export function addTodo(text: string, source: TodoItem['source'] = 'manual'): TodoItem {
   const item: TodoItem = { id: uid(), text, done: false, createdAt: Date.now(), source };
   store.todos.unshift(item);
@@ -105,7 +169,7 @@ export function deleteTodo(id: string) {
   notify();
 }
 
-// --- Custom ---
+// ── Custom ─────────────────────────────────────────────────────────────────
 export function addCustomEntry(label: string, value: string): CustomEntry {
   const entry: CustomEntry = { id: uid(), label, value, createdAt: Date.now() };
   store.customs.unshift(entry);

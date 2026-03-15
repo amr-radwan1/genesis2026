@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,9 +8,6 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  Animated,
-  Pressable,
-  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -34,7 +31,7 @@ import {
 
 type Category = 'notes' | 'todos' | 'custom';
 
-// ─── Subcomponent: Category Pill ───────────────────────────────────────────
+// ─── Category Pill ──────────────────────────────────────────────────────────
 function CategoryPill({
   label,
   active,
@@ -54,7 +51,7 @@ function CategoryPill({
   );
 }
 
-// ─── Subcomponent: Note Card ────────────────────────────────────────────────
+// ─── Note Card ──────────────────────────────────────────────────────────────
 function NoteCard({ note, onDelete }: { note: Note; onDelete: () => void }) {
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(note.text);
@@ -69,12 +66,12 @@ function NoteCard({ note, onDelete }: { note: Note; onDelete: () => void }) {
       <View style={styles.cardHeader}>
         {note.source === 'ai' && (
           <View style={styles.aiBadge}>
-            <Text style={styles.aiBadgeText}>AI</Text>
+            <Text style={styles.aiBadgeText}>✦ AI</Text>
           </View>
         )}
         <View style={{ flex: 1 }} />
         <TouchableOpacity onPress={() => setEditing(!editing)} style={styles.iconBtn}>
-          <Ionicons name={editing ? 'checkmark' : 'pencil'} size={16} color="#94a3b8" />
+          <Ionicons name={editing ? 'checkmark' : 'pencil-outline'} size={16} color="#94a3b8" />
         </TouchableOpacity>
         <TouchableOpacity onPress={onDelete} style={styles.iconBtn}>
           <Ionicons name="trash-outline" size={16} color="#94a3b8" />
@@ -82,13 +79,13 @@ function NoteCard({ note, onDelete }: { note: Note; onDelete: () => void }) {
       </View>
       {editing ? (
         <TextInput
-          style={styles.cardInput}
+          style={styles.cardEditInput}
           value={text}
           onChangeText={setText}
           onBlur={save}
           autoFocus
           multiline
-          placeholderTextColor="#64748b"
+          placeholderTextColor="#94a3b8"
         />
       ) : (
         <Text style={styles.cardText}>{note.text}</Text>
@@ -97,7 +94,7 @@ function NoteCard({ note, onDelete }: { note: Note; onDelete: () => void }) {
   );
 }
 
-// ─── Subcomponent: Todo Card ────────────────────────────────────────────────
+// ─── Todo Card ──────────────────────────────────────────────────────────────
 function TodoCard({ item, onDelete }: { item: TodoItem; onDelete: () => void }) {
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(item.text);
@@ -112,30 +109,29 @@ function TodoCard({ item, onDelete }: { item: TodoItem; onDelete: () => void }) 
       <View style={styles.cardRow}>
         <TouchableOpacity onPress={() => toggleTodo(item.id)} style={styles.checkbox}>
           {item.done ? (
-            <Ionicons name="checkmark-circle" size={24} color="#000000" />
+            <Ionicons name="checkmark-circle" size={22} color="#000000" />
           ) : (
-            <Ionicons name="ellipse-outline" size={24} color="#475569" />
+            <Ionicons name="ellipse-outline" size={22} color="#cbd5e1" />
           )}
         </TouchableOpacity>
 
         {editing ? (
           <TextInput
-            style={[styles.cardInput, { flex: 1 }]}
+            style={[styles.cardEditInput, { flex: 1 }]}
             value={text}
             onChangeText={setText}
             onBlur={save}
             autoFocus
-            placeholderTextColor="#64748b"
+            placeholderTextColor="#94a3b8"
           />
         ) : (
-          <Text
-            style={[styles.cardText, item.done && styles.cardTextDone, { flex: 1 }]}>
+          <Text style={[styles.cardText, item.done && styles.cardTextDone, { flex: 1 }]}>
             {item.text}
           </Text>
         )}
 
         <TouchableOpacity onPress={() => setEditing(!editing)} style={styles.iconBtn}>
-          <Ionicons name={editing ? 'checkmark' : 'pencil'} size={16} color="#94a3b8" />
+          <Ionicons name={editing ? 'checkmark' : 'pencil-outline'} size={16} color="#94a3b8" />
         </TouchableOpacity>
         <TouchableOpacity onPress={onDelete} style={styles.iconBtn}>
           <Ionicons name="trash-outline" size={16} color="#94a3b8" />
@@ -143,14 +139,14 @@ function TodoCard({ item, onDelete }: { item: TodoItem; onDelete: () => void }) 
       </View>
       {item.source === 'ai' && (
         <View style={[styles.aiBadge, { alignSelf: 'flex-start', marginTop: 6 }]}>
-          <Text style={styles.aiBadgeText}>AI</Text>
+          <Text style={styles.aiBadgeText}>✦ AI</Text>
         </View>
       )}
     </View>
   );
 }
 
-// ─── Subcomponent: Custom Card ──────────────────────────────────────────────
+// ─── Custom Card ─────────────────────────────────────────────────────────────
 function CustomCard({
   entry,
   onDelete,
@@ -172,42 +168,42 @@ function CustomCard({
       <View style={styles.cardHeader}>
         <View style={{ flex: 1 }} />
         <TouchableOpacity onPress={() => setEditing(!editing)} style={styles.iconBtn}>
-          <Ionicons name={editing ? 'checkmark' : 'pencil'} size={16} color="#94a3b8" />
+          <Ionicons name={editing ? 'checkmark' : 'pencil-outline'} size={16} color="#94a3b8" />
         </TouchableOpacity>
         <TouchableOpacity onPress={onDelete} style={styles.iconBtn}>
           <Ionicons name="trash-outline" size={16} color="#94a3b8" />
         </TouchableOpacity>
       </View>
       {editing ? (
-        <View style={styles.customEditRow}>
+        <View style={{ gap: 8 }}>
           <TextInput
-            style={[styles.cardInput, styles.customLabelInput]}
+            style={[styles.cardEditInput, { fontWeight: '700' }]}
             value={label}
             onChangeText={setLabel}
             placeholder="Label"
-            placeholderTextColor="#64748b"
+            placeholderTextColor="#94a3b8"
           />
           <TextInput
-            style={[styles.cardInput, { flex: 1 }]}
+            style={styles.cardEditInput}
             value={value}
             onChangeText={setValue}
             onBlur={save}
             placeholder="Value"
-            placeholderTextColor="#64748b"
+            placeholderTextColor="#94a3b8"
             multiline
           />
         </View>
       ) : (
-        <View>
+        <>
           <Text style={styles.customLabel}>{entry.label}</Text>
           <Text style={styles.cardText}>{entry.value || '—'}</Text>
-        </View>
+        </>
       )}
     </View>
   );
 }
 
-// ─── Main Screen ────────────────────────────────────────────────────────────
+// ─── Main Screen ─────────────────────────────────────────────────────────────
 export default function MemoryScreen() {
   const [category, setCategory] = useState<Category>('notes');
   const [snap, setSnap] = useState(getMemorySnapshot());
@@ -223,12 +219,11 @@ export default function MemoryScreen() {
   function handleAdd() {
     const trimmed = input.trim();
     if (!trimmed) return;
-
     if (category === 'notes') {
       addNote(trimmed);
     } else if (category === 'todos') {
       addTodo(trimmed);
-    } else if (category === 'custom') {
+    } else {
       addCustomEntry(customLabel.trim() || 'Custom', trimmed);
       setCustomLabel('');
     }
@@ -236,11 +231,9 @@ export default function MemoryScreen() {
   }
 
   const inputPlaceholder =
-    category === 'notes'
-      ? 'Add a note...'
-      : category === 'todos'
-      ? 'Add a task...'
-      : 'Enter value...';
+    category === 'notes' ? 'Add a note...' :
+    category === 'todos' ? 'Add a task...' :
+    'Enter value...';
 
   const isEmpty =
     (category === 'notes' && snap.notes.length === 0) ||
@@ -249,29 +242,18 @@ export default function MemoryScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
+
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>Memory</Text>
         <Text style={styles.subtitle}>Your context, organized</Text>
       </View>
 
-      {/* Category Pills */}
+      {/* Category pills */}
       <View style={styles.pillRow}>
-        <CategoryPill
-          label="Notes"
-          active={category === 'notes'}
-          onPress={() => setCategory('notes')}
-        />
-        <CategoryPill
-          label="Todos"
-          active={category === 'todos'}
-          onPress={() => setCategory('todos')}
-        />
-        <CategoryPill
-          label="Custom"
-          active={category === 'custom'}
-          onPress={() => setCategory('custom')}
-        />
+        <CategoryPill label="Notes"  active={category === 'notes'}  onPress={() => setCategory('notes')} />
+        <CategoryPill label="Todos"  active={category === 'todos'}  onPress={() => setCategory('todos')} />
+        <CategoryPill label="Custom" active={category === 'custom'} onPress={() => setCategory('custom')} />
       </View>
 
       {/* List */}
@@ -279,70 +261,57 @@ export default function MemoryScreen() {
         style={styles.list}
         contentContainerStyle={styles.listContent}
         keyboardShouldPersistTaps="handled">
+
         {isEmpty && (
           <View style={styles.emptyState}>
             <Ionicons
               name={
-                category === 'notes'
-                  ? 'document-text-outline'
-                  : category === 'todos'
-                  ? 'checkbox-outline'
-                  : 'construct-outline'
+                category === 'notes'   ? 'document-text-outline' :
+                category === 'todos'   ? 'checkbox-outline' :
+                                         'construct-outline'
               }
               size={40}
-              color="#334155"
+              color="#e2e8f0"
             />
             <Text style={styles.emptyTitle}>
-              {category === 'notes'
-                ? 'No notes yet'
-                : category === 'todos'
-                ? 'No tasks yet'
-                : 'No custom entries yet'}
+              {category === 'notes' ? 'No notes yet' :
+               category === 'todos' ? 'No tasks yet' :
+                                      'No custom entries yet'}
             </Text>
             <Text style={styles.emptyBody}>
               {category === 'custom'
-                ? 'Add any key/value pairs you want the AI to remember.'
-                : 'Add one below, or the AI will populate this from your transcriptions.'}
+                ? 'Add key/value pairs you want the AI to remember.'
+                : 'Add one below — the AI will populate this from your transcriptions.'}
             </Text>
           </View>
         )}
 
-        {category === 'notes' &&
-          snap.notes.map((note) => (
-            <NoteCard key={note.id} note={note} onDelete={() => deleteNote(note.id)} />
-          ))}
+        {category === 'notes' && snap.notes.map((note) => (
+          <NoteCard key={note.id} note={note} onDelete={() => deleteNote(note.id)} />
+        ))}
 
-        {category === 'todos' &&
-          snap.todos.map((item) => (
-            <TodoCard
-              key={item.id}
-              item={item}
-              onDelete={() => deleteTodo(item.id)}
-            />
-          ))}
+        {category === 'todos' && snap.todos.map((item) => (
+          <TodoCard key={item.id} item={item} onDelete={() => deleteTodo(item.id)} />
+        ))}
 
-        {category === 'custom' &&
-          snap.customs.map((entry) => (
-            <CustomCard
-              key={entry.id}
-              entry={entry}
-              onDelete={() => deleteCustomEntry(entry.id)}
-            />
-          ))}
+        {category === 'custom' && snap.customs.map((entry) => (
+          <CustomCard key={entry.id} entry={entry} onDelete={() => deleteCustomEntry(entry.id)} />
+        ))}
+
       </ScrollView>
 
-      {/* Input Bar */}
+      {/* Input bar */}
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={90}>
         <View style={styles.inputBar}>
           {category === 'custom' && (
             <TextInput
-              style={[styles.textInput, styles.labelInput]}
+              style={[styles.textInput, { width: 100 }]}
               value={customLabel}
               onChangeText={setCustomLabel}
               placeholder="Label"
-              placeholderTextColor="#64748b"
+              placeholderTextColor="#94a3b8"
             />
           )}
           <TextInput
@@ -351,7 +320,7 @@ export default function MemoryScreen() {
             value={input}
             onChangeText={setInput}
             placeholder={inputPlaceholder}
-            placeholderTextColor="#64748b"
+            placeholderTextColor="#94a3b8"
             onSubmitEditing={handleAdd}
             returnKeyType="done"
             multiline={false}
@@ -364,29 +333,33 @@ export default function MemoryScreen() {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+
     </SafeAreaView>
   );
 }
 
+// ─── Styles (light mode, matching the rest of the app) ──────────────────────
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#060d18',
+    backgroundColor: '#ffffff',
   },
+
   header: {
-    paddingHorizontal: 22,
-    paddingTop: 12,
-    paddingBottom: 8,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
   },
   title: {
-    fontSize: 28,
+    fontSize: 22,
     fontWeight: '800',
-    color: '#f8fafc',
-    letterSpacing: -0.5,
+    color: '#0f172a',
   },
   subtitle: {
-    fontSize: 14,
-    color: '#64748b',
+    fontSize: 13,
+    color: '#94a3b8',
     marginTop: 2,
     fontWeight: '500',
   },
@@ -395,16 +368,16 @@ const styles = StyleSheet.create({
   pillRow: {
     flexDirection: 'row',
     gap: 8,
-    paddingHorizontal: 22,
+    paddingHorizontal: 20,
     paddingVertical: 14,
   },
   pill: {
     paddingHorizontal: 18,
     paddingVertical: 8,
     borderRadius: 999,
-    backgroundColor: '#0e1a2b',
+    backgroundColor: '#f8fafc',
     borderWidth: 1,
-    borderColor: 'rgba(148,163,184,0.15)',
+    borderColor: '#e2e8f0',
   },
   pillActive: {
     backgroundColor: '#000000',
@@ -435,23 +408,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
   },
   emptyTitle: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '700',
-    color: '#475569',
+    color: '#94a3b8',
   },
   emptyBody: {
     fontSize: 14,
-    color: '#334155',
+    color: '#cbd5e1',
     textAlign: 'center',
     lineHeight: 20,
   },
 
   // Cards
   card: {
-    backgroundColor: '#0e1a2b',
+    backgroundColor: '#f8fafc',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(148,163,184,0.12)',
+    borderColor: '#f1f5f9',
     padding: 14,
     gap: 6,
   },
@@ -467,54 +440,46 @@ const styles = StyleSheet.create({
   },
   cardText: {
     fontSize: 15,
-    color: '#cbd5e1',
+    color: '#334155',
     lineHeight: 22,
     flexShrink: 1,
   },
   cardTextDone: {
     textDecorationLine: 'line-through',
-    color: '#475569',
+    color: '#94a3b8',
   },
-  cardInput: {
+  cardEditInput: {
     fontSize: 15,
-    color: '#f1f5f9',
+    color: '#0f172a',
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(148,163,184,0.3)',
+    borderBottomColor: '#e2e8f0',
     paddingVertical: 2,
   },
   aiBadge: {
-    backgroundColor: 'rgba(249,115,22,0.18)',
+    backgroundColor: '#f0fdf4',
     paddingHorizontal: 7,
     paddingVertical: 2,
     borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
   },
   aiBadgeText: {
     fontSize: 10,
     fontWeight: '800',
-    color: '#f97316',
-    letterSpacing: 0.5,
+    color: '#16a34a',
+    letterSpacing: 0.3,
   },
-  iconBtn: {
-    padding: 4,
-  },
-  checkbox: {
-    padding: 2,
-  },
+  iconBtn: { padding: 4 },
+  checkbox: { padding: 2 },
 
   // Custom
-  customEditRow: {
-    gap: 8,
-  },
-  customLabelInput: {
-    fontWeight: '700',
-  },
   customLabel: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '800',
-    color: '#f97316',
+    color: '#94a3b8',
     textTransform: 'uppercase',
     letterSpacing: 0.8,
-    marginBottom: 4,
+    marginBottom: 2,
   },
 
   // Input bar
@@ -525,31 +490,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(148,163,184,0.1)',
-    backgroundColor: '#060d18',
+    borderTopColor: '#f1f5f9',
+    backgroundColor: '#ffffff',
   },
   textInput: {
-    backgroundColor: '#0e1a2b',
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    backgroundColor: '#f8fafc',
+    borderRadius: 22,
+    paddingHorizontal: 16,
+    paddingVertical: 11,
     fontSize: 15,
-    color: '#f1f5f9',
+    color: '#0f172a',
     borderWidth: 1,
-    borderColor: 'rgba(148,163,184,0.15)',
-  },
-  labelInput: {
-    width: 100,
+    borderColor: '#e2e8f0',
   },
   addBtn: {
     backgroundColor: '#000000',
-    width: 42,
-    height: 42,
-    borderRadius: 14,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
   },
   addBtnDisabled: {
-    opacity: 0.35,
+    opacity: 0.3,
   },
 });
