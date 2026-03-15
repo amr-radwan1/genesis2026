@@ -3,6 +3,14 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import notifee, { EventType } from '@notifee/react-native';
+
+// Needs to be registered extremely early in the JS lifecycle
+notifee.onBackgroundEvent(async ({ type, detail }) => {
+  if (type === EventType.ACTION_PRESS && detail.pressAction?.id) {
+    console.log('User pressed notification action in background');
+  }
+});
 
 export const unstable_settings = {
   anchor: '(tabs)',

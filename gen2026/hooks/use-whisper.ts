@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { startLiveTranscription, stopLiveTranscription } from '@/services/whisper-service';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 
 import BackgroundService from '@/services/background-service';
 
@@ -10,12 +11,14 @@ export function useWhisper() {
   // Auto-cleanup on unmount if it was left running
   useEffect(() => {
     return () => {
+      deactivateKeepAwake();
       stopLiveTranscription().catch(console.error);
     };
   }, []);
 
   const handleStart = useCallback(async (onTextUpdate?: (text: string) => void) => {
     try {
+      await activateKeepAwakeAsync();
       await startLiveTranscription(
         (text) => {
           setCurrentTranscript(text);
@@ -35,6 +38,7 @@ export function useWhisper() {
 
   const handleStop = useCallback(async () => {
     try {
+      deactivateKeepAwake();
       await stopLiveTranscription();
     } catch (e) {
       console.error('Error stopping live transcription:', e);
