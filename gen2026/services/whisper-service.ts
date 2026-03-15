@@ -91,14 +91,14 @@ type LiveController = {
 
 // Model URLs from Hugging Face
 const WHISPER_MODEL_URL =
-  'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin';
+  'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin';
 const VAD_MODEL_URL =
   'https://huggingface.co/ggml-org/whisper-vad/resolve/main/ggml-silero-v6.2.0.bin';
 
 const MODELS_DIR = `${FileSystem.documentDirectory}models/`;
-const WHISPER_MODEL_PATH = `${MODELS_DIR}ggml-tiny.bin`;
+const WHISPER_MODEL_PATH = `${MODELS_DIR}ggml-small.bin`;
 const VAD_MODEL_PATH = `${MODELS_DIR}ggml-silero-v6.2.0.bin`;
-const MIN_WHISPER_MODEL_BYTES = 1_000_000;
+const MIN_WHISPER_MODEL_BYTES = 100_000_000;
 const MIN_VAD_MODEL_BYTES = 100_000;
 const SUPPORTED_AUDIO_EXTENSIONS = new Set(['wav', 'wave']);
 
@@ -409,7 +409,7 @@ export async function ensureModelsDownloaded(onProgress?: ProgressCallback): Pro
   await downloadModelIfNeeded(
     WHISPER_MODEL_URL,
     WHISPER_MODEL_PATH,
-    'Whisper tiny model',
+    'Whisper small model',
     MIN_WHISPER_MODEL_BYTES,
     onProgress,
   );
