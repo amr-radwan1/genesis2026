@@ -1,5 +1,5 @@
 import * as FileSystem from 'expo-file-system/legacy';
-
+import { toastService } from '@/services/toast-service';
 import { assertNativeInferenceAvailable } from '@/services/native-runtime';
 import { addNote, addTodo, addCustomEntry } from '@/services/memory-store';
 
@@ -201,41 +201,61 @@ export async function extractMemoryFromTranscript(transcript: string): Promise<v
     },
   ];
 
-  try {
-    let raw = '';
-    await activeContext.completion(
-      { messages: prompt, n_predict: 300, stop: STOP_WORDS },
-      (data) => { raw += data.token; },
-    );
+    const toastId = toastService.show('AI is analyzing context...', 'loading', 0);
 
-    // Extract JSON even if there's surrounding text
-    const match = raw.match(/\{[\s\S]*\}/);
-    if (!match) return;
+    try {
+      let raw = '';
+      await activeContext.completion(
+        { messages: prompt, n_predict: 300, stop: STOP_WORDS },
+        (data) => { raw += data.token; },
+      );
 
-    const parsed = JSON.parse(match[0]);
+      // Extract JSON even if there's surrounding text
+      const match = raw.match(/\{[\s\S]*\}/);
+      if (!match) {
+        toastService.hide(toastId);
+        return;
+      }
 
-    if (Array.isArray(parsed.notes)) {
-      for (const text of parsed.notes) {
-        if (typeof text === 'string' && text.trim()) {
-          addNote(text.trim(), 'ai');
+      const parsed = JSON.parse(match[0]);
+      let addedCount = 0;
+
+      if (Array.isArray(parsed.notes)) {
+        for (const text of parsed.notes) {
+          if (typeof text === 'string' && text.trim()) {
+            addNote(text.trim(), 'ai');
+            addedCount++;
+          }
         }
       }
-    }
-    if (Array.isArray(parsed.todos)) {
-      for (const text of parsed.todos) {
-        if (typeof text === 'string' && text.trim()) {
-          addTodo(text.trim(), 'ai');
+      if (Array.isArray(parsed.todos)) {
+        for (const text of parsed.todos) {
+          if (typeof text === 'string' && text.trim()) {
+            addTodo(text.trim(), 'ai');
+            addedCount++;
+          }
         }
       }
-    }
-    if (Array.isArray(parsed.custom)) {
-      for (const entry of parsed.custom) {
-        if (entry && typeof entry.label === 'string' && typeof entry.value === 'string') {
-          addCustomEntry(entry.label.trim(), entry.value.trim());
+      if (Array.isArray(parsed.custom)) {
+        for (const entry of parsed.custom) {
+          if (entry && typeof entry.label === 'string' && typeof entry.value === 'string') {
+            addCustomEntry(entry.label.trim(), entry.value.trim());
+            addedCount++;
+          }
         }
       }
+
+      if (addedCount > 0) {
+        toastService.update(toastId, {
+          message: 'Memory extracted! ✦',
+          type: 'success',
+          duration: 3000
+        });
+      } else {
+        toastService.hide(toastId);
+      }
+    } catch (err) {
+      console.error('[LLM] Extraction failed:', err);
+      toastService.hide(toastId);
     }
-  } catch {
-    // Silent failure — memory extraction is best-effort
-  }
 }

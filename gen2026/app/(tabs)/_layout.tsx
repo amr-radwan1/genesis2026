@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { checkAndAutoLoadGemma } from '@/services/llm-service';
+import { ToastOverlay } from '@/components/ToastOverlay';
 
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
@@ -15,7 +16,8 @@ export default function TabLayout() {
   }, []);
 
   return (
-    <Tabs
+    <>
+      <Tabs
       screenOptions={{
         tabBarActiveTintColor: '#f97316',
         tabBarInactiveTintColor: '#94a3b8',
@@ -62,6 +64,8 @@ export default function TabLayout() {
           ),
         }}
       />
-    </Tabs>
+      </Tabs>
+      <ToastOverlay />
+    </>
   );
 }
