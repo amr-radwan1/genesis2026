@@ -1,6 +1,7 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import { PermissionsAndroid, Platform } from 'react-native';
 
+import { startBackgroundRecordingService, stopBackgroundRecordingService } from './background-service';
 import { assertNativeInferenceAvailable } from '@/services/native-runtime';
 
 type WhisperModule = {
@@ -671,6 +672,7 @@ async function releaseLiveSession(
   await sleep(250);
   await session.context.release().catch(() => undefined);
   await whisper.releaseAllWhisper?.().catch(() => undefined);
+  await stopBackgroundRecordingService();
 }
 
 async function beginLiveSession(controller: LiveController) {
@@ -800,6 +802,8 @@ export async function stopLiveTranscription() {
     await releaseLiveSession(whisper, session);
   }
 
+  await stopBackgroundRecordingService();
+
   controller.callbacks.onStatus?.('Live transcription stopped.');
 }
 
@@ -821,6 +825,7 @@ export async function startLiveTranscription(
   };
   activeLiveController = controller;
 
+  await startBackgroundRecordingService();
   await beginLiveSession(controller);
 
   return {

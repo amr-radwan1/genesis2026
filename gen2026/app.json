@@ -13,7 +13,9 @@
     },
     "android": {
       "permissions": [
-        "RECORD_AUDIO"
+        "RECORD_AUDIO",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_MICROPHONE"
       ],
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
@@ -30,6 +32,7 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
+      "./plugins/withNotifee",
       "expo-dev-client",
       "expo-router",
       [
