@@ -29,11 +29,14 @@ const withNotifee = (config) => {
     );
 
     if (!hasNotifeeService) {
+      androidManifest.manifest.$['xmlns:tools'] = 'http://schemas.android.com/tools';
+      
       application.service.push({
         $: {
           'android:name': 'app.notifee.core.ForegroundService',
-          'android:foregroundServiceType': 'microphone',
+          'android:foregroundServiceType': 'microphone|shortService',
           'android:exported': 'false',
+          'tools:replace': 'android:foregroundServiceType',
         },
       });
     }
