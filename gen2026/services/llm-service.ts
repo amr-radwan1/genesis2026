@@ -35,6 +35,7 @@ type LlamaModule = {
 
 const HF_REPO = 'unsloth/gemma-3-1b-it-GGUF';
 const HF_FILENAME = 'gemma-3-1b-it-IQ4_NL.gguf';
+const MIN_GEMMA_MODEL_BYTES = 250 * 1024 * 1024;
 
 const MODELS_DIR = `${FileSystem.documentDirectory}models/`;
 // Explicitly define stop sequences for Gemma 3
@@ -66,7 +67,7 @@ async function ensureModelsDir() {
 export async function isModelDownloaded(): Promise<boolean> {
   const targetPath = `${MODELS_DIR}${HF_FILENAME}`;
   const fileInfo = await FileSystem.getInfoAsync(targetPath);
-  return fileInfo.exists;
+  return fileInfo.exists && (fileInfo.size ?? 0) >= MIN_GEMMA_MODEL_BYTES;
 }
 
 export async function downloadGemmaModel(
@@ -99,16 +100,34 @@ export async function downloadGemmaModel(
     throw new Error(`Failed to download ${HF_FILENAME}`);
   }
 
+  const downloadedInfo = await FileSystem.getInfoAsync(targetPath);
+  if (!downloadedInfo.exists || (downloadedInfo.size ?? 0) < MIN_GEMMA_MODEL_BYTES) {
+    await FileSystem.deleteAsync(targetPath, { idempotent: true });
+    throw new Error(`${HF_FILENAME} download looks incomplete. Please retry.`);
+  }
+
   onProgress?.(`Ready`, 100);
   return targetPath;
 }
 
+function getModelPathCandidates(modelUri: string): string[] {
+  const withoutScheme = modelUri.startsWith('file://')
+    ? modelUri.replace(/^file:\/\//, '')
+    : modelUri;
+
+  if (withoutScheme === modelUri) {
+    return [modelUri];
+  }
+
+  return [modelUri, withoutScheme];
+}
+
 export async function loadGemmaModel() {
   const llama = getLlamaModule();
-  const path = `${MODELS_DIR}${HF_FILENAME}`;
-  const fileInfo = await FileSystem.getInfoAsync(path);
+  const modelUri = `${MODELS_DIR}${HF_FILENAME}`;
+  const fileInfo = await FileSystem.getInfoAsync(modelUri);
 
-  if (!fileInfo.exists) {
+  if (!fileInfo.exists || (fileInfo.size ?? 0) < MIN_GEMMA_MODEL_BYTES) {
     throw new Error(`Model file is missing`);
   }
 
@@ -117,13 +136,29 @@ export async function loadGemmaModel() {
   }
 
   await llama.releaseAllLlama();
-  activeContext = await llama.initLlama({
-    model: path,
-    use_mlock: true,
-    n_ctx: 2048,
-    n_gpu_layers: 1, // Utilize Android GPU via standard llama.cpp backend if available
-  });
-  isActive = true;
+  const candidates = getModelPathCandidates(modelUri);
+  let lastError: unknown = null;
+
+  for (const candidatePath of candidates) {
+    try {
+      activeContext = await llama.initLlama({
+        model: candidatePath,
+        use_mlock: false,
+        n_ctx: 2048,
+        n_gpu_layers: 0,
+      });
+      isActive = true;
+      return;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  const errorMessage =
+    lastError instanceof Error ? lastError.message : 'Unknown model init error';
+  throw new Error(
+    `Failed to load model at ${modelUri} (size=${fileInfo.size ?? 0} bytes). ${errorMessage}`,
+  );
 }
 
 export async function unloadGemmaModel() {

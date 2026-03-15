@@ -9,7 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import {
   getMemorySnapshot,
@@ -205,6 +205,7 @@ function CustomCard({
 
 // ─── Main Screen ─────────────────────────────────────────────────────────────
 export default function MemoryScreen() {
+  const insets = useSafeAreaInsets();
   const [category, setCategory] = useState<Category>('notes');
   const [snap, setSnap] = useState(getMemorySnapshot());
   const [input, setInput] = useState('');
@@ -242,6 +243,10 @@ export default function MemoryScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 + insets.bottom : 0}>
 
       {/* Header */}
       <View style={styles.header}>
@@ -301,37 +306,35 @@ export default function MemoryScreen() {
       </ScrollView>
 
       {/* Input bar */}
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={90}>
-        <View style={styles.inputBar}>
-          {category === 'custom' && (
-            <TextInput
-              style={[styles.textInput, { width: 100 }]}
-              value={customLabel}
-              onChangeText={setCustomLabel}
-              placeholder="Label"
-              placeholderTextColor="#94a3b8"
-            />
-          )}
+      <View style={styles.inputBar}>
+        {category === 'custom' && (
           <TextInput
-            ref={inputRef}
-            style={[styles.textInput, { flex: 1 }]}
-            value={input}
-            onChangeText={setInput}
-            placeholder={inputPlaceholder}
+            style={[styles.textInput, { width: 100 }]}
+            value={customLabel}
+            onChangeText={setCustomLabel}
+            placeholder="Label"
             placeholderTextColor="#94a3b8"
-            onSubmitEditing={handleAdd}
-            returnKeyType="done"
-            multiline={false}
           />
-          <TouchableOpacity
-            onPress={handleAdd}
-            style={[styles.addBtn, !input.trim() && styles.addBtnDisabled]}
-            disabled={!input.trim()}>
-            <Ionicons name="add" size={22} color="#fff" />
-          </TouchableOpacity>
-        </View>
+        )}
+        <TextInput
+          ref={inputRef}
+          style={[styles.textInput, { flex: 1 }]}
+          value={input}
+          onChangeText={setInput}
+          placeholder={inputPlaceholder}
+          placeholderTextColor="#94a3b8"
+          onSubmitEditing={handleAdd}
+          returnKeyType="done"
+          multiline={false}
+        />
+        <TouchableOpacity
+          onPress={handleAdd}
+          style={[styles.addBtn, !input.trim() && styles.addBtnDisabled]}
+          disabled={!input.trim()}>
+          <Ionicons name="add" size={22} color="#fff" />
+        </TouchableOpacity>
+      </View>
+
       </KeyboardAvoidingView>
 
     </SafeAreaView>

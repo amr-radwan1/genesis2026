@@ -10,7 +10,7 @@ import {
   Platform,
   ActivityIndicator,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   isModelDownloaded,
   downloadGemmaModel,
@@ -21,7 +21,39 @@ import {
 } from '@/services/llm-service';
 import { getMemorySnapshot } from '@/services/memory-store';
 
+const MEMORY_STOP_WORDS = new Set([
+  'the', 'a', 'an', 'and', 'or', 'but', 'if', 'then', 'than', 'to', 'of', 'in', 'on', 'for',
+  'with', 'at', 'by', 'from', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'it', 'this',
+  'that', 'these', 'those', 'as', 'about', 'into', 'over', 'after', 'before', 'between',
+  'you', 'your', 'i', 'we', 'they', 'he', 'she', 'them', 'our', 'my', 'me', 'do', 'does', 'did',
+  'can', 'could', 'should', 'would', 'what', 'when', 'where', 'why', 'how', 'please', 'tell',
+  'explain', 'summarize', 'summary', 'audio', 'recording', 'transcript'
+]);
+
+function tokenize(text: string): string[] {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter((token) => token.length >= 3 && !MEMORY_STOP_WORDS.has(token));
+}
+
+function getOverlapScore(queryTokens: Set<string>, text: string): number {
+  if (queryTokens.size === 0) return 0;
+
+  const textTokens = new Set(tokenize(text));
+  let score = 0;
+  queryTokens.forEach((token) => {
+    if (textTokens.has(token)) {
+      score += 1;
+    }
+  });
+
+  return score;
+}
+
 export default function ChatScreen() {
+  const insets = useSafeAreaInsets();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isReady, setIsReady] = useState(false);
@@ -56,21 +88,44 @@ export default function ChatScreen() {
     initializeLLM();
   }, []);
 
-  function buildMemorySystemMessage(): ChatMessage | null {
+  function buildMemorySystemMessage(userInput: string): ChatMessage | null {
     const { notes, todos, customs } = getMemorySnapshot();
+    const queryTokens = new Set(tokenize(userInput));
+
+    const scoredNotes = notes
+      .map((n) => ({ item: n, score: getOverlapScore(queryTokens, n.text) }))
+      .filter((x) => x.score > 0)
+      .sort((a, b) => b.score - a.score || b.item.createdAt - a.item.createdAt)
+      .slice(0, 5)
+      .map((x) => x.item);
+
+    const scoredTodos = todos
+      .map((t) => ({ item: t, score: getOverlapScore(queryTokens, t.text) }))
+      .filter((x) => x.score > 0)
+      .sort((a, b) => b.score - a.score || b.item.createdAt - a.item.createdAt)
+      .slice(0, 4)
+      .map((x) => x.item);
+
+    const scoredCustoms = customs
+      .map((c) => ({ item: c, score: getOverlapScore(queryTokens, `${c.label} ${c.value}`) }))
+      .filter((x) => x.score > 0)
+      .sort((a, b) => b.score - a.score || b.item.createdAt - a.item.createdAt)
+      .slice(0, 4)
+      .map((x) => x.item);
+
     const parts: string[] = [];
 
-    if (notes.length > 0) {
-      parts.push('Notes:\n' + notes.map((n) => `- ${n.text}`).join('\n'));
+    if (scoredNotes.length > 0) {
+      parts.push('Relevant Notes:\n' + scoredNotes.map((n) => `- ${n.text}`).join('\n'));
     }
-    if (todos.length > 0) {
+    if (scoredTodos.length > 0) {
       parts.push(
-        'Todos:\n' +
-          todos.map((t) => `- [${t.done ? 'x' : ' '}] ${t.text}`).join('\n'),
+        'Relevant Todos:\n' +
+          scoredTodos.map((t) => `- [${t.done ? 'x' : ' '}] ${t.text}`).join('\n'),
       );
     }
-    if (customs.length > 0) {
-      parts.push('Key facts:\n' + customs.map((c) => `- ${c.label}: ${c.value}`).join('\n'));
+    if (scoredCustoms.length > 0) {
+      parts.push('Relevant Key Facts:\n' + scoredCustoms.map((c) => `- ${c.label}: ${c.value}`).join('\n'));
     }
 
     if (parts.length === 0) return null;
@@ -78,7 +133,7 @@ export default function ChatScreen() {
     return {
       role: 'system',
       content:
-        "You are a helpful AI assistant. Use the user's personal memory below as context when answering.\n\n" +
+        "You are a helpful AI assistant. Use ONLY the memory items below if they are directly relevant to the user's current request. If not relevant, ignore them completely and answer from general knowledge. Never force unrelated memory into the answer.\n\n" +
         parts.join('\n\n'),
     };
   }
@@ -96,7 +151,7 @@ export default function ChatScreen() {
       const assistantMessage: ChatMessage = { role: 'assistant', content: '' };
       setMessages([...newMessages, assistantMessage]);
 
-      const systemMsg = buildMemorySystemMessage();
+      const systemMsg = buildMemorySystemMessage(userMessage.content);
       const messagesForModel: ChatMessage[] = systemMsg
         ? [systemMsg, ...newMessages]
         : newMessages;
@@ -135,8 +190,8 @@ export default function ChatScreen() {
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <KeyboardAvoidingView
         style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 + insets.bottom : 0}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Gemma Assistant</Text>
         </View>

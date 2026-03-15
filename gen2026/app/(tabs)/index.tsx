@@ -221,7 +221,8 @@ export default function RecordScreen() {
           {isRecording ? 'Listening...' : 'Local Voice Interface'}
         </Text>
       </View>
-      <View style={styles.centerArea}>
+
+      <View style={styles.centerArea}>
         <View style={styles.actionContainer}>
           <SplineBlob isRecording={isRecording} />
           
@@ -273,15 +274,20 @@ export default function RecordScreen() {
       <View style={styles.uploadSection}>
         <View style={styles.uploadRow}>
           <TouchableOpacity
-            style={styles.uploadPickButton}
+            style={[styles.uploadPickButton, audioFileName && styles.uploadPickButtonSelected]}
             onPress={pickAudioAsync}
             disabled={whisperBusy}
             activeOpacity={0.7}
           >
-            <Ionicons name="attach" size={18} color="#4f46e5" />
-            <Text style={styles.uploadPickText} numberOfLines={1}>
-              {audioFileName ?? 'Select WAV File'}
-            </Text>
+            <View style={styles.uploadPickIconWrap}>
+              <Ionicons name="attach" size={16} color="#475569" />
+            </View>
+            <View style={styles.uploadPickMeta}>
+              <Text style={styles.uploadPickLabel}>Attach audio file</Text>
+              <Text style={styles.uploadPickFileName} numberOfLines={1}>
+                {audioFileName ?? 'No file selected'}
+              </Text>
+            </View>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.uploadTranscribeButton, (!audioFileUri || whisperBusy) && styles.uploadDisabled]}
@@ -451,19 +457,46 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#f1f5f9',
+    gap: 10,
+    backgroundColor: '#ffffff',
     borderRadius: 16,
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: 10,
     borderWidth: 1,
     borderColor: '#e2e8f0',
   },
-  uploadPickText: {
+  uploadPickButtonSelected: {
+    borderColor: '#cbd5e1',
+    backgroundColor: '#f8fafc',
+  },
+  uploadPickIconWrap: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#f1f5f9',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  uploadPickMeta: {
     flex: 1,
+    justifyContent: 'center',
+  },
+  uploadPickLabel: {
+    fontSize: 11,
+    lineHeight: 13,
+    color: '#64748b',
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  uploadPickFileName: {
     fontSize: 14,
-    color: '#334155',
+    lineHeight: 18,
+    color: '#0f172a',
     fontWeight: '600',
+    marginTop: 2,
   },
   uploadTranscribeButton: {
     backgroundColor: '#000000',
