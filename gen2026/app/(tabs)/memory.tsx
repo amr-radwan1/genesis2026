@@ -257,7 +257,7 @@ export default function MemoryScreen() {
       {/* Category pills */}
       <View style={styles.pillRow}>
         <CategoryPill label="Notes"  active={category === 'notes'}  onPress={() => setCategory('notes')} />
-        <CategoryPill label="Todos"  active={category === 'todos'}  onPress={() => setCategory('todos')} />
+        <CategoryPill label="Tasks"  active={category === 'todos'}  onPress={() => setCategory('todos')} />
         <CategoryPill label="Custom" active={category === 'custom'} onPress={() => setCategory('custom')} />
       </View>
 
